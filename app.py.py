@@ -470,6 +470,30 @@ with st.sidebar:
     client_name = st.text_input("客戶姓名", "王小明")
     st.caption(f"製表日期：{time.strftime('%Y/%m/%d')}")
 
+    # ── 免責聲明 ──
+    st.markdown("---")
+    st.markdown("""
+    <div style="
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-left: 3px solid #f97316;
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-size: 0.72rem;
+        color: #7c3a00;
+        line-height: 1.6;
+    ">
+        <div style="font-weight:700;letter-spacing:1px;margin-bottom:6px;color:#c2410c;">
+            ⚠️ 投資風險聲明
+        </div>
+        本系統提供之數據與分析報告僅供<strong>參考用途</strong>，不構成任何投資建議或買賣邀約。<br><br>
+        • 投資涉及風險，過去績效不代表未來報酬<br>
+        • 所有試算結果均為模擬，實際投資結果可能有所不同<br>
+        • 本系統不負責因使用本資訊所導致之任何損失<br><br>
+        進行任何投資決策前，請諮詢合格之專業財務顧問。
+    </div>
+    """, unsafe_allow_html=True)
+
 st.markdown(f'<p class="main-title">💼 財務規劃系統 Pro</p>', unsafe_allow_html=True)
 st.markdown("---")
 
