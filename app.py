@@ -895,103 +895,413 @@ elif module == "🏖️ 退休金試算":
                            f"退休規劃_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
 
 # ═══════════════════════════════════════════════════════
-# 模組五：稅務規劃
+# 模組五：稅務規劃（綜所稅 + 海外收入 + 遺產贈與稅）
 # ═══════════════════════════════════════════════════════
 elif module == "🧾 稅務規劃":
-    st.subheader("🧾 稅務規劃（台灣綜合所得稅）")
+    st.subheader("🧾 稅務規劃")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**所得資料（年）**")
-        salary_income   = st.number_input("薪資所得（元）", value=1200000, step=10000)
-        dividend_income = st.number_input("股利所得（元）", value=100000, step=10000)
-        rental_income   = st.number_input("租賃所得（元）", value=0, step=10000)
-        other_income_t  = st.number_input("其他所得（元）", value=0, step=10000)
-    with col2:
-        st.markdown("**扣除額**")
-        filing_status = st.selectbox("申報方式", ["單身","夫妻合併","夫妻分開"])
-        dependents    = st.number_input("撫養人數", value=1, min_value=0, max_value=10)
-        has_elderly   = st.checkbox("撫養70歲以上長輩", value=False)
-        life_insurance_ded = st.number_input("人壽保險費（元）", value=60000, step=1000)
-        medical_ded   = st.number_input("醫療費用（元）", value=0, step=1000)
-        mortgage_ded  = st.number_input("房貸利息（元）", value=120000, step=10000)
+    # 子分頁
+    tax_tab1, tax_tab2, tax_tab3 = st.tabs(["📋 綜合所得稅", "🌏 海外收入分析", "🏛️ 遺產與贈與稅"])
 
-    if st.button("🔍 試算所得稅", key="btn_tax"):
-        st.session_state.run_tax = True
+    # ── Tab 1：綜合所得稅 ──────────────────────────────────
+    with tax_tab1:
+        st.markdown("**國內所得資料（年）**")
+        col1, col2 = st.columns(2)
+        with col1:
+            salary_income   = st.number_input("薪資所得（元）", value=1200000, step=10000, key="t1_sal")
+            dividend_income = st.number_input("國內股利所得（元）", value=100000, step=10000, key="t1_div")
+            rental_income   = st.number_input("租賃所得（元）", value=0, step=10000, key="t1_rent")
+            other_income_t  = st.number_input("其他所得（元）", value=0, step=10000, key="t1_other")
+        with col2:
+            filing_status = st.selectbox("申報方式", ["單身","夫妻合併","夫妻分開"], key="t1_fs")
+            dependents    = st.number_input("撫養人數", value=1, min_value=0, max_value=10, key="t1_dep")
+            has_elderly   = st.checkbox("撫養70歲以上長輩", value=False, key="t1_eld")
+            life_insurance_ded = st.number_input("人壽保險費（元）", value=60000, step=1000, key="t1_ins")
+            medical_ded   = st.number_input("醫療費用（元）", value=0, step=1000, key="t1_med")
+            mortgage_ded  = st.number_input("房貸利息（元）", value=120000, step=10000, key="t1_mor")
 
-    if st.session_state.run_tax:
-        # 2024年台灣綜合所得稅參數
-        BASIC_EXEMPT = 92000       # 基本免稅額
-        SALARY_DED   = 218000      # 薪資特別扣除額
-        STANDARD_DED_SINGLE  = 124000
-        STANDARD_DED_MARRIED = 248000
-        PERSONAL_EXEMPT = 92000
+        if st.button("🔍 試算綜合所得稅", key="btn_tax"):
+            st.session_state.run_tax = True
 
-        # 免稅額
-        num_persons = 1 if filing_status=="單身" else 2
-        total_exempt = PERSONAL_EXEMPT * num_persons
-        total_exempt += PERSONAL_EXEMPT * dependents
-        if has_elderly:
-            total_exempt += PERSONAL_EXEMPT * 0.5  # 加倍扣除
+        if st.session_state.run_tax:
+            SALARY_DED   = 218000
+            STANDARD_DED_SINGLE  = 124000
+            STANDARD_DED_MARRIED = 248000
+            PERSONAL_EXEMPT = 92000
 
-        # 薪資特扣
-        salary_special_ded = min(salary_income, SALARY_DED)
+            num_persons = 1 if filing_status=="單身" else 2
+            total_exempt = PERSONAL_EXEMPT * (num_persons + dependents)
+            if has_elderly:
+                total_exempt += PERSONAL_EXEMPT * 0.5
 
-        # 標準 vs 列舉
-        standard_ded = STANDARD_DED_MARRIED if filing_status=="夫妻合併" else STANDARD_DED_SINGLE
-        itemized_ded = min(life_insurance_ded, 24000) + medical_ded + mortgage_ded
-        deduction = max(standard_ded, itemized_ded)
-        use_itemized = itemized_ded > standard_ded
+            salary_special_ded = min(salary_income, SALARY_DED)
+            standard_ded = STANDARD_DED_MARRIED if filing_status=="夫妻合併" else STANDARD_DED_SINGLE
+            itemized_ded = min(life_insurance_ded, 24000) + medical_ded + min(mortgage_ded, 300000)
+            deduction = max(standard_ded, itemized_ded)
+            use_itemized = itemized_ded > standard_ded
 
-        total_gross = salary_income + dividend_income + rental_income + other_income_t
-        net_income  = max(total_gross - total_exempt - salary_special_ded - deduction, 0)
+            total_gross = salary_income + dividend_income + rental_income + other_income_t
+            net_income  = max(total_gross - total_exempt - salary_special_ded - deduction, 0)
 
-        # 累進稅率（2024）
-        brackets = [(560000,0.05),(1260000,0.12),(2520000,0.20),(4720000,0.30),(float('inf'),0.40)]
-        prev, tax = 0, 0
-        for limit, rate in brackets:
-            if net_income <= 0: break
-            taxable = min(net_income, limit) - prev
-            if taxable <= 0:
-                prev = limit; continue
-            tax += taxable * rate
-            prev = limit
-            if net_income <= limit: break
+            brackets = [(560000,0.05),(1260000,0.12),(2520000,0.20),(4720000,0.30),(float('inf'),0.40)]
+            prev, tax = 0, 0
+            for limit, rate in brackets:
+                if net_income <= 0: break
+                taxable = min(net_income, limit) - prev
+                if taxable <= 0:
+                    prev = limit; continue
+                tax += taxable * rate
+                prev = limit
+                if net_income <= limit: break
 
-        # 股利可抵減（8.5%，上限8萬）
-        div_credit = min(dividend_income * 0.085, 80000)
-        final_tax  = max(tax - div_credit, 0)
-        eff_rate   = final_tax / total_gross * 100 if total_gross > 0 else 0
+            div_credit = min(dividend_income * 0.085, 80000)
+            final_tax  = max(tax - div_credit, 0)
+            eff_rate   = final_tax / total_gross * 100 if total_gross > 0 else 0
 
-        st.markdown('<p class="section-header">稅務試算結果</p>', unsafe_allow_html=True)
-        t1,t2,t3,t4 = st.columns(4)
-        t1.metric("綜合所得總額", f"${total_gross:,.0f}")
-        t2.metric("綜合所得淨額", f"${net_income:,.0f}")
-        t3.metric("應繳所得稅", f"${final_tax:,.0f}")
-        t4.metric("有效稅率", f"{eff_rate:.2f}%")
+            st.markdown('<p class="section-header">試算結果</p>', unsafe_allow_html=True)
+            t1,t2,t3,t4 = st.columns(4)
+            t1.metric("綜合所得總額", f"${total_gross:,.0f}")
+            t2.metric("綜合所得淨額", f"${net_income:,.0f}")
+            t3.metric("應繳所得稅", f"${final_tax:,.0f}")
+            t4.metric("有效稅率", f"{eff_rate:.2f}%")
 
-        df_tax = pd.DataFrame({
-            "項目": ["綜合所得總額","免稅額","薪資特別扣除","扣除額（標準/列舉）",
-                    "股利可抵減稅額","綜合所得淨額","應繳稅額","有效稅率"],
-            "金額": [f"${total_gross:,}", f"${total_exempt:,.0f}", f"${salary_special_ded:,.0f}",
-                    f"${deduction:,.0f}（{'列舉' if use_itemized else '標準'}）",
-                    f"${div_credit:,.0f}", f"${net_income:,.0f}",
-                    f"${final_tax:,.0f}", f"{eff_rate:.2f}%"]
-        })
-        st.dataframe(df_tax, use_container_width=True, hide_index=True)
+            df_tax = pd.DataFrame({
+                "項目": ["綜合所得總額","免稅額","薪資特別扣除","扣除額（標準/列舉）",
+                        "股利可抵減稅額","綜合所得淨額","應繳稅額","有效稅率"],
+                "金額": [f"${total_gross:,}", f"${total_exempt:,.0f}", f"${salary_special_ded:,.0f}",
+                        f"${deduction:,.0f}（{'列舉' if use_itemized else '標準'}）",
+                        f"${div_credit:,.0f}", f"${net_income:,.0f}",
+                        f"${final_tax:,.0f}", f"{eff_rate:.2f}%"]
+            })
+            st.dataframe(df_tax, use_container_width=True, hide_index=True)
 
-        if use_itemized:
-            st.success(f"✅ 採**列舉扣除額** ${itemized_ded:,.0f}，比標準扣除 ${standard_ded:,.0f} 多省 ${(itemized_ded-standard_ded)*0.12:,.0f} 稅金")
-        else:
-            st.info(f"ℹ️ 採**標準扣除額** ${standard_ded:,.0f}（列舉 ${itemized_ded:,.0f} 較低）")
+            if use_itemized:
+                st.success(f"✅ 採列舉扣除額 ${itemized_ded:,.0f}，比標準扣除 ${standard_ded:,.0f} 省更多")
+            else:
+                st.info(f"ℹ️ 採標準扣除額 ${standard_ded:,.0f}（列舉 ${itemized_ded:,.0f} 較低）")
 
-        st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
-        advice_t = get_tax_advice(total_gross, final_tax, eff_rate, use_itemized, dividend_income, filing_status)
-        render_ai(advice_t, "系統分析 · 稅務規劃")
+            st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
+            advice_t = get_tax_advice(total_gross, final_tax, eff_rate, use_itemized, dividend_income, filing_status)
+            render_ai(advice_t, "系統分析 · 綜合所得稅")
 
-        pdf_bytes = build_pdf(client_name, [
-            {"title": "稅務試算明細", "content": None, "table": df_tax},
-            {"title": "AI 節稅建議", "content": strip_md(advice_t), "table": None},
-        ])
-        st.download_button("📥 下載 PDF 報告", pdf_bytes,
-                           f"稅務規劃_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
+            pdf_bytes_t = build_pdf(client_name, [
+                {"title": "綜合所得稅試算明細", "content": None, "table": df_tax},
+                {"title": "節稅建議", "content": strip_md(advice_t), "table": None},
+            ])
+            st.download_button("📥 下載 PDF 報告", pdf_bytes_t,
+                               f"綜所稅_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
+
+    # ── Tab 2：海外收入分析 ────────────────────────────────
+    with tax_tab2:
+        st.markdown("""
+        <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 16px;
+                    font-size:0.82rem;color:#3730a3;margin-bottom:16px;">
+        📌 <b>台灣海外收入課稅說明：</b>台灣採「最低稅負制（AMT）」，海外收入超過 <b>100 萬元</b> 須計入基本所得額，
+        基本所得額超過 <b>750 萬元</b> 才需繳納 20% 基本稅額，且與一般所得稅擇高課徵。
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**海外收入（年）**")
+            overseas_salary   = st.number_input("海外薪資所得（元）", value=0, step=10000, key="os_sal",
+                                                 help="在海外工作取得的薪資，須申報但有免稅額")
+            overseas_dividend = st.number_input("海外股利／基金配息（元）", value=0, step=10000, key="os_div",
+                                                 help="美股、ETF、海外基金配息等")
+            overseas_rental   = st.number_input("海外租金收入（元）", value=0, step=10000, key="os_rent",
+                                                 help="在海外持有房產的租金收入")
+            overseas_capital  = st.number_input("海外資本利得（元）", value=0, step=10000, key="os_cap",
+                                                 help="賣出海外股票、基金等的獲利")
+        with col2:
+            st.markdown("**國內所得（供比較用）**")
+            domestic_income_cmp = st.number_input("國內年所得合計（元）", value=1200000, step=10000, key="dom_inc")
+            st.markdown("**已繳海外稅款**")
+            overseas_tax_paid = st.number_input("已在海外繳納稅款（元）", value=0, step=10000, key="os_tax",
+                                                  help="如美國預扣稅（withholding tax）等，可用來扣抵台灣稅額")
+
+        if st.button("🔍 分析海外收入稅務", key="btn_overseas"):
+            st.session_state["run_overseas"] = True
+
+        if st.session_state.get("run_overseas"):
+            total_overseas = overseas_salary + overseas_dividend + overseas_rental + overseas_capital
+
+            # 最低稅負制（AMT）計算
+            AMT_EXEMPT      = 7500000   # 基本所得額免稅 750 萬
+            AMT_RATE        = 0.20      # 基本稅率 20%
+            OVERSEAS_EXEMPT = 1000000   # 海外收入免稅門檻 100 萬
+
+            # 計入基本所得額的海外收入（超過 100 萬部分）
+            overseas_taxable = max(total_overseas - OVERSEAS_EXEMPT, 0)
+            basic_income     = domestic_income_cmp + overseas_taxable
+
+            # 基本稅額
+            basic_tax_base = max(basic_income - AMT_EXEMPT, 0)
+            basic_tax      = basic_tax_base * AMT_RATE
+
+            # 一般稅額估算（簡化）
+            brackets = [(560000,0.05),(1260000,0.12),(2520000,0.20),(4720000,0.30),(float('inf'),0.40)]
+            prev, normal_tax = 0, 0
+            net_dom = max(domestic_income_cmp - 92000 - min(domestic_income_cmp, 218000) - 124000, 0)
+            for limit, rate in brackets:
+                if net_dom <= 0: break
+                taxable = min(net_dom, limit) - prev
+                if taxable > 0:
+                    normal_tax += taxable * rate
+                prev = limit
+                if net_dom <= limit: break
+
+            # 擇高課徵，扣掉已繳海外稅
+            final_amt = max(basic_tax - normal_tax, 0)
+            additional_tax = max(final_amt - overseas_tax_paid, 0)
+            total_tax_burden = normal_tax + additional_tax
+            eff_rate_overseas = total_tax_burden / (domestic_income_cmp + total_overseas) * 100 if (domestic_income_cmp + total_overseas) > 0 else 0
+
+            st.markdown('<p class="section-header">海外收入稅務分析</p>', unsafe_allow_html=True)
+
+            # KPI
+            o1,o2,o3,o4 = st.columns(4)
+            o1.metric("海外收入合計", f"${total_overseas:,.0f}")
+            o2.metric("計入基本所得額", f"${overseas_taxable:,.0f}",
+                      delta="超過100萬門檻" if overseas_taxable > 0 else "未達門檻免計入")
+            o3.metric("最低稅負額", f"${basic_tax:,.0f}",
+                      delta="需額外繳納" if additional_tax > 0 else "低於一般稅額")
+            o4.metric("綜合有效稅率", f"{eff_rate_overseas:.2f}%")
+
+            # 各類海外收入對比表
+            df_overseas = pd.DataFrame({
+                "收入類型": ["海外薪資", "海外股利/配息", "海外租金", "海外資本利得", "合計"],
+                "金額（元）": [f"${overseas_salary:,}", f"${overseas_dividend:,}",
+                              f"${overseas_rental:,}", f"${overseas_capital:,}",
+                              f"${total_overseas:,}"],
+                "台灣課稅方式": [
+                    "併入綜合所得稅，可扣除海外已繳稅",
+                    "計入最低稅負制基本所得額",
+                    "計入最低稅負制基本所得額",
+                    "計入最低稅負制基本所得額",
+                    "—"
+                ],
+                "注意事項": [
+                    "需申報，海外工作滿183天可能免稅",
+                    "美股配息通常已扣30%預扣稅",
+                    "需申報，可扣除費用後計稅",
+                    "台灣對海外資本利得課20%最低稅負",
+                    "—"
+                ]
+            })
+            st.dataframe(df_overseas, use_container_width=True, hide_index=True)
+
+            # 國內 vs 海外收入結構圖
+            st.markdown('<p class="section-header">國內外收入結構比較</p>', unsafe_allow_html=True)
+            df_structure = pd.DataFrame({
+                "類別": ["國內所得", "海外薪資", "海外股利/配息", "海外租金", "海外資本利得"],
+                "金額（萬）": [
+                    domestic_income_cmp/10000,
+                    overseas_salary/10000,
+                    overseas_dividend/10000,
+                    overseas_rental/10000,
+                    overseas_capital/10000
+                ]
+            }).set_index("類別")
+            st.bar_chart(df_structure)
+
+            # 節稅提示
+            st.markdown('<p class="section-header">海外稅務節稅要點</p>', unsafe_allow_html=True)
+            tips = []
+            if total_overseas < 1000000:
+                tips.append("✅ 海外收入未達 100 萬免稅門檻，目前**無需計入最低稅負**，建議維持在此範圍內")
+            else:
+                tips.append(f"⚠️ 海外收入 ${total_overseas:,} 已超過 100 萬門檻，需計入基本所得額 ${overseas_taxable:,}")
+            if overseas_dividend > 0:
+                tips.append("💡 美股配息通常已預扣 30% 美國稅，可向台灣國稅局申請扣抵，避免重複課稅")
+            if overseas_capital > 0:
+                tips.append("💡 海外資本利得可考慮分批實現，避免單年度基本所得額超過 750 萬")
+            if overseas_salary > 0:
+                tips.append("💡 海外工作連續滿 183 天可能符合非居住者身份，建議諮詢會計師確認申報方式")
+            for tip in tips:
+                st.markdown(tip)
+
+            pdf_bytes_o = build_pdf(client_name, [
+                {"title": "海外收入稅務分析", "content": None, "table": df_overseas},
+                {"title": "國內外收入結構", "content": f"國內所得：${domestic_income_cmp:,}\n海外收入合計：${total_overseas:,}\n最低稅負額：${basic_tax:,.0f}\n綜合有效稅率：{eff_rate_overseas:.2f}%", "table": None},
+            ])
+            st.download_button("📥 下載 PDF 報告", pdf_bytes_o,
+                               f"海外收入稅務_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
+
+    # ── Tab 3：遺產與贈與稅 ───────────────────────────────
+    with tax_tab3:
+        st.markdown("""
+        <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 16px;
+                    font-size:0.82rem;color:#3730a3;margin-bottom:16px;">
+        📌 <b>2024年遺產稅：</b>免稅額 <b>1,333 萬元</b>，稅率 10%/15%/20% 三級累進。
+        <b>贈與稅：</b>每人每年免稅額 <b>244 萬元</b>，超過部分 10%/15%/20% 累進課徵。
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**遺產試算**")
+            total_estate      = st.number_input("遺產總額（萬）", value=3000, step=100,
+                                                  help="含不動產、存款、股票、保險、其他資產")
+            estate_debt       = st.number_input("負債（萬）", value=500, step=50,
+                                                  help="房貸、其他債務可從遺產中扣除")
+            funeral_expense   = st.number_input("喪葬費扣除（萬）", value=123, step=10,
+                                                  help="2024年固定扣除額 123 萬")
+            num_heirs         = st.number_input("繼承人數（直系血親）", value=2, min_value=0, max_value=10,
+                                                  help="每位直系血親繼承人可扣除 50 萬")
+            has_disabled_heir = st.checkbox("繼承人有身心障礙者", value=False,
+                                              help="身心障礙者繼承人可額外扣除 693 萬")
+        with col2:
+            st.markdown("**贈與稅試算（每年）**")
+            gift_amount       = st.number_input("贈與總額（萬）", value=0, step=50,
+                                                  help="每人每年 244 萬免稅額")
+            gift_persons      = st.number_input("贈與人數（夫妻各自均可贈與）", value=1, min_value=1, max_value=2,
+                                                  help="夫妻各自有 244 萬免稅額，合計可達 488 萬/年")
+            st.markdown("**保險節稅規劃**")
+            life_insurance_value = st.number_input("人壽保險死亡給付（萬）", value=0, step=100,
+                                                     help="指定受益人之壽險死亡給付，每位受益人免稅額 3,330 萬")
+
+        if st.button("🔍 試算遺產與贈與稅", key="btn_estate"):
+            st.session_state["run_estate"] = True
+
+        if st.session_state.get("run_estate"):
+            # ── 遺產稅計算 ──
+            ESTATE_EXEMPT    = 1333   # 免稅額 萬
+            HEIR_DED         = 50     # 每位直系血親 萬
+            DISABLED_DED     = 693    # 身障繼承人 萬
+            SPOUSE_DED       = 553    # 配偶扣除額 萬（簡化，若有配偶）
+
+            net_estate = total_estate - estate_debt - funeral_expense
+            estate_deduction = (HEIR_DED * num_heirs) + (DISABLED_DED if has_disabled_heir else 0)
+            taxable_estate = max(net_estate - ESTATE_EXEMPT - estate_deduction, 0)
+
+            # 遺產稅三級累進（萬為單位）
+            estate_brackets = [(5000, 0.10), (10000, 0.15), (float('inf'), 0.20)]
+            prev_e, estate_tax = 0, 0
+            for limit, rate in estate_brackets:
+                if taxable_estate <= 0: break
+                taxable = min(taxable_estate, limit) - prev_e
+                if taxable > 0:
+                    estate_tax += taxable * rate
+                prev_e = limit
+                if taxable_estate <= limit: break
+
+            # 壽險免稅額
+            insurance_exempt_per = 3330  # 每位受益人萬
+            insurance_exempt_total = min(life_insurance_value, insurance_exempt_per)
+            effective_estate_after_ins = max(taxable_estate - max(life_insurance_value - insurance_exempt_total, 0) * 0, taxable_estate)
+
+            # ── 贈與稅計算 ──
+            GIFT_EXEMPT_PER = 244  # 每人每年免稅額 萬
+            total_gift_exempt = GIFT_EXEMPT_PER * gift_persons
+            taxable_gift = max(gift_amount - total_gift_exempt, 0)
+
+            gift_brackets = [(2500, 0.10), (5000, 0.15), (float('inf'), 0.20)]
+            prev_g, gift_tax = 0, 0
+            for limit, rate in gift_brackets:
+                if taxable_gift <= 0: break
+                taxable = min(taxable_gift, limit) - prev_g
+                if taxable > 0:
+                    gift_tax += taxable * rate
+                prev_g = limit
+                if taxable_gift <= limit: break
+
+            # ── 顯示結果 ──
+            st.markdown('<p class="section-header">遺產稅試算</p>', unsafe_allow_html=True)
+            e1,e2,e3,e4 = st.columns(4)
+            e1.metric("遺產淨額", f"{net_estate:,.0f} 萬")
+            e2.metric("課稅遺產淨額", f"{taxable_estate:,.0f} 萬")
+            e3.metric("應納遺產稅", f"{estate_tax:,.0f} 萬",
+                      delta="需規劃節稅" if estate_tax > 0 else "免稅")
+            e4.metric("遺產稅率級距",
+                      "20%" if taxable_estate > 10000 else "15%" if taxable_estate > 5000 else "10%" if taxable_estate > 0 else "免稅")
+
+            df_estate = pd.DataFrame({
+                "項目": ["遺產總額","負債扣除","喪葬費扣除","遺產免稅額（1,333萬）",
+                         f"繼承人扣除（{num_heirs}人×50萬）",
+                         "身障繼承人加扣" if has_disabled_heir else "身障加扣（無）",
+                         "課稅遺產淨額","應納遺產稅"],
+                "金額（萬）": [
+                    f"{total_estate:,}", f"-{estate_debt:,}", f"-{funeral_expense:,}",
+                    f"-{ESTATE_EXEMPT:,}", f"-{HEIR_DED * num_heirs:,}",
+                    f"-{DISABLED_DED}" if has_disabled_heir else "0",
+                    f"{taxable_estate:,.0f}", f"{estate_tax:,.0f}"
+                ]
+            })
+            st.dataframe(df_estate, use_container_width=True, hide_index=True)
+
+            st.markdown('<p class="section-header">贈與稅試算</p>', unsafe_allow_html=True)
+            g1,g2,g3 = st.columns(3)
+            g1.metric("贈與總額", f"{gift_amount:,} 萬")
+            g2.metric(f"免稅額（{gift_persons}人×244萬）", f"{total_gift_exempt:,} 萬")
+            g3.metric("應納贈與稅", f"{gift_tax:,.0f} 萬",
+                      delta="需注意" if gift_tax > 0 else "免稅")
+
+            # ── 壽險節稅分析 ──
+            if life_insurance_value > 0:
+                st.markdown('<p class="section-header">壽險節稅分析</p>', unsafe_allow_html=True)
+                st.info(f"""
+                💡 **壽險死亡給付節稅效果**
+                - 指定受益人的壽險給付 **不計入遺產**，每位受益人享有 **3,330 萬免稅額**
+                - 您設定的壽險保額 **{life_insurance_value:,} 萬**，可讓受益人免稅領取
+                - 若改用遺產繼承，同等金額需繳納遺產稅約 **{min(life_insurance_value * 0.10, life_insurance_value * 0.20):,.0f} 萬**
+                - 建議以保險規劃傳承，節稅效果顯著 ✅
+                """)
+
+            # ── 遺產 vs 逐年贈與比較 ──
+            st.markdown('<p class="section-header">遺產稅 vs 逐年贈與規劃比較</p>', unsafe_allow_html=True)
+            years_plan = 10
+            gift_per_year = GIFT_EXEMPT_PER * 2  # 夫妻各自贈與
+            total_gift_10y = gift_per_year * years_plan
+            remaining_estate = max(total_estate - total_gift_10y, 0)
+            remaining_net = max(remaining_estate - estate_debt - funeral_expense - ESTATE_EXEMPT - estate_deduction, 0)
+            prev_r, remaining_tax = 0, 0
+            for limit, rate in estate_brackets:
+                if remaining_net <= 0: break
+                taxable = min(remaining_net, limit) - prev_r
+                if taxable > 0:
+                    remaining_tax += taxable * rate
+                prev_r = limit
+                if remaining_net <= limit: break
+
+            df_compare = pd.DataFrame({
+                "方案": ["現在全部留遺產", f"夫妻各自每年贈與{gift_per_year}萬（持續{years_plan}年）"],
+                "稅負（萬）": [f"{estate_tax:,.0f}", f"{remaining_tax:,.0f}"],
+                "可移轉財產（萬）": [
+                    f"{total_estate - estate_tax:,.0f}",
+                    f"{total_estate - remaining_tax:,.0f}"
+                ],
+                "節稅效果": ["基準", f"可節省約 {max(estate_tax - remaining_tax, 0):,.0f} 萬"]
+            })
+            st.dataframe(df_compare, use_container_width=True, hide_index=True)
+
+            # 節稅建議文字
+            st.markdown('<p class="section-header">節稅規劃建議</p>', unsafe_allow_html=True)
+            advice_estate = f"""【遺產與贈與稅規劃報告】
+
+一、遺產稅現況
+客戶遺產總額 {total_estate:,} 萬元，扣除負債與各項扣除後，課稅遺產淨額為 {taxable_estate:,.0f} 萬元，應納遺產稅約 {estate_tax:,.0f} 萬元。{"目前遺產規模已達須積極規劃節稅的門檻。" if estate_tax > 0 else "目前遺產規模在免稅範圍內，暫無遺產稅壓力。"}
+
+二、逐年贈與規劃
+夫妻各自每年可贈與 244 萬（合計 488 萬）且免稅。持續 10 年可移轉 {gift_per_year * years_plan:,} 萬資產，有效降低未來遺產稅基，預計可節省遺產稅約 {max(estate_tax - remaining_tax, 0):,.0f} 萬元。
+
+三、壽險節稅策略
+{"指定受益人的壽險給付不計入遺產，每位受益人享有 3,330 萬免稅額，是最有效的傳承工具之一。建議將部分資產轉換為壽險保額，兼顧保障與節稅。" if life_insurance_value == 0 else f"現有壽險保額 {life_insurance_value:,} 萬，可讓受益人免稅傳承，節稅效果顯著。建議持續維持並適時調高保額。"}
+
+四、建議優先行動
+• 每年善用夫妻各 244 萬贈與免稅額，儘早移轉資產
+• 考慮以不動產信託規劃，減少遺產糾紛
+• 壽險受益人務必指定，避免給付計入遺產
+• 每 3 年重新評估遺產規模，適時調整規劃
+
+五、免責聲明
+本試算依現行稅法，實際稅額以國稅局核定為準。重大稅務決策請諮詢專業會計師或律師。"""
+
+            render_ai(advice_estate, "系統分析 · 遺產規劃")
+
+            pdf_bytes_e = build_pdf(client_name, [
+                {"title": "遺產稅試算", "content": None, "table": df_estate},
+                {"title": "方案比較", "content": None, "table": df_compare},
+                {"title": "節稅規劃建議", "content": strip_md(advice_estate), "table": None},
+            ])
+            st.download_button("📥 下載 PDF 報告", pdf_bytes_e,
+                               f"遺產規劃_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
