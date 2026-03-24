@@ -725,6 +725,8 @@ elif module == "🛡️ 保險需求分析":
         children    = st.number_input("子女數", value=1, min_value=0, max_value=5)
         annual_income = st.number_input("年收入（萬）", value=120, step=10)
         years_to_retire = st.number_input("距退休年數", value=30, step=1)
+        # ✅ 新增：房貸負債
+        mortgage_debt = st.number_input("房貸餘額（萬）", value=0, step=50, help="壽險需求會加入房貸餘額，確保身故後家人不需承擔負債")
     with col2:
         st.markdown("**現有保障**")
         current_life     = st.number_input("現有壽險保額（萬）", value=500, step=100)
@@ -732,21 +734,32 @@ elif module == "🛡️ 保險需求分析":
         current_accident = st.number_input("現有意外險（萬）", value=200, step=100)
         current_disable  = st.number_input("現有失能月給付（元）", value=0, step=5000)
         monthly_expense_ins = st.number_input("家庭月支出（元）", value=50000, step=5000)
+        # ✅ 新增：失能替代率讓客戶自己調整
+        disable_replace_rate = st.slider("失能收入替代率（%）", 40, 80, 60, 5,
+            help="失能後每月需要原本支出的多少比例？建議 60%，有房貸可調高至 70~80%") / 100
 
     if st.button("🔍 計算保障缺口", key="btn_ins"):
         st.session_state.run_insurance = True
 
     if st.session_state.run_insurance:
-        # 壽險需求 = 年收入 × 剩餘工作年數 × 0.7（遺族替代率）+ 負債
-        life_needed    = int(annual_income * years_to_retire * 0.7)
+        # ✅ 壽險需求 = 年收入 × 剩餘工作年數 × 0.7 + 房貸負債
+        life_needed    = int(annual_income * years_to_retire * 0.7) + mortgage_debt
         life_gap       = max(life_needed - current_life, 0)
 
-        # 醫療：建議實支實付至少 50 萬
-        medical_needed = 50
+        # ✅ 醫療：依年齡動態調整建議額度
+        if age < 40:
+            medical_needed = 50
+            medical_note = "（40歲以下建議值）"
+        elif age < 55:
+            medical_needed = 75
+            medical_note = "（40~54歲建議值）"
+        else:
+            medical_needed = 100
+            medical_note = "（55歲以上建議值）"
         medical_gap    = max(medical_needed - current_medical, 0)
 
-        # 失能：月給付建議達家庭月支出 60%
-        disable_needed = int(monthly_expense_ins * 0.6)
+        # ✅ 失能：依客戶自訂替代率計算
+        disable_needed = int(monthly_expense_ins * disable_replace_rate)
         disable_gap    = max(disable_needed - current_disable, 0)
 
         # 意外：建議年收入 10 倍
@@ -762,9 +775,15 @@ elif module == "🛡️ 保險需求分析":
 
         df_ins = pd.DataFrame({
             "險種": ["壽險","醫療實支實付","失能險（月）","意外險"],
+            "計算基準": [
+                f"年收入{annual_income}萬×{years_to_retire}年×70%+房貸{mortgage_debt}萬",
+                f"年齡{age}歲動態建議{medical_note}",
+                f"月支出×{int(disable_replace_rate*100)}%替代率",
+                f"年收入×10倍"
+            ],
             "現有保額": [f"{current_life}萬", f"{current_medical}萬",
                         f"${current_disable:,}", f"{current_accident}萬"],
-            "建議保額": [f"{life_needed}萬", f"{medical_needed}萬",
+            "建議保額": [f"{life_needed}萬", f"{medical_needed}萬{medical_note}",
                         f"${disable_needed:,}", f"{accident_needed}萬"],
             "缺口": [f"{life_gap}萬" if life_gap>0 else "✓",
                     f"{medical_gap}萬" if medical_gap>0 else "✓",
