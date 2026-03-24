@@ -395,7 +395,12 @@ def get_fund_data(fund_id, name):
         date_col = next((c for c in ['tradeDate','date','navDate','datetime'] if c in df_nav.columns), None)
         nav_col  = next((c for c in ['nav','nav_price','price'] if c in df_nav.columns), None)
         if not date_col or not nav_col: return None
-        df_nav['date'] = pd.to_datetime(df_nav[date_col])
+        # 修正：鉅亨 API 回傳 Unix timestamp（秒），需用 unit='s' 轉換
+        raw_date = pd.to_numeric(df_nav[date_col], errors='coerce')
+        if raw_date.dropna().iloc[0] > 1e9:
+            df_nav['date'] = pd.to_datetime(raw_date, unit='s', errors='coerce')
+        else:
+            df_nav['date'] = pd.to_datetime(df_nav[date_col], errors='coerce')
         df_nav['nav']  = pd.to_numeric(df_nav[nav_col], errors='coerce')
         df_nav = df_nav.sort_values('date').dropna(subset=['nav'])
     except Exception as e:
