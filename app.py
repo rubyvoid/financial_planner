@@ -470,6 +470,8 @@ with st.sidebar:
         "🛡️ 保險需求分析",
         "🏖️ 退休金試算",
         "🧾 稅務規劃",
+        "💳 信貸投資套利",
+        "🏠 房貸減壓分析",
     ])
     st.markdown("---")
     client_name = st.text_input("客戶姓名", "王小明")
@@ -1305,3 +1307,283 @@ elif module == "🧾 稅務規劃":
             ])
             st.download_button("📥 下載 PDF 報告", pdf_bytes_e,
                                f"遺產規劃_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
+
+# ═══════════════════════════════════════════════════════
+# 模組六：信貸投資套利試算
+# ═══════════════════════════════════════════════════════
+elif module == "💳 信貸投資套利":
+    st.subheader("💳 信貸投資套利試算")
+    st.markdown("""
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 16px;
+                font-size:0.82rem;color:#3730a3;margin-bottom:16px;">
+    📌 <b>套利原理：</b>向銀行借取低利率信貸，將資金投入預期報酬率較高的基金或ETF，賺取利差。
+    此策略有風險，市場報酬不保證，虧損時仍需還款。請審慎評估風險承受度。
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**信貸條件**")
+        loan_amount    = st.number_input("貸款金額（元）", value=1000000, step=50000, key="cl_amt")
+        loan_rate      = st.slider("信貸年利率（%）", 1.0, 8.0, 2.5, 0.1, key="cl_rate")
+        loan_years     = st.number_input("貸款年期（年）", value=7, min_value=1, max_value=10, key="cl_yr")
+    with col2:
+        st.markdown("**投資設定**")
+        inv_amount     = st.number_input("實際投資金額（元）", value=1000000, step=50000, key="cl_inv",
+                                          help="通常等於貸款金額")
+        exp_return     = st.slider("預期年化報酬率（%）", 1.0, 15.0, 7.0, 0.5, key="cl_ret")
+        st.markdown("**投資標的配置**")
+        cl_targets = []
+        for i, (name, pct) in enumerate([("006208 富邦台50", 40), ("安聯收益成長", 30), ("統一奔騰基金", 30)]):
+            c1, c2 = st.columns([3,1])
+            with c1: t = st.text_input(f"標的 {i+1}", name, key=f"cl_t{i}")
+            with c2: p = st.number_input("%", value=pct, min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="hidden")
+            cl_targets.append((t, p))
+
+    if st.button("🔍 試算套利效益", key="btn_credit"):
+        st.session_state["run_credit"] = True
+
+    if st.session_state.get("run_credit"):
+        r_monthly   = loan_rate / 100 / 12
+        n_months    = loan_years * 12
+        # 月還款額（本利攤還）
+        monthly_payment = loan_amount * r_monthly / (1 - (1 + r_monthly) ** (-n_months))
+        total_payment   = monthly_payment * n_months
+        total_interest  = total_payment - loan_amount
+
+        # 投資終值
+        inv_r_monthly = exp_return / 100 / 12
+        final_inv_val = inv_amount * (1 + exp_return/100) ** loan_years
+
+        # 套利淨利
+        net_profit  = final_inv_val - total_payment
+        arb_spread  = exp_return - loan_rate
+
+        st.markdown('<p class="section-header">套利試算結果</p>', unsafe_allow_html=True)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("每月還款額", f"${monthly_payment:,.0f}")
+        k2.metric("利率差（套利空間）", f"{arb_spread:.1f}%",
+                  delta="正套利" if arb_spread > 0 else "負套利，不建議")
+        k3.metric(f"{loan_years}年後投資終值", f"${final_inv_val:,.0f}")
+        k4.metric("扣除還款後淨利", f"${net_profit:,.0f}",
+                  delta="獲利" if net_profit > 0 else "虧損")
+
+        # 走勢圖：負債 vs 資產
+        years_list = list(range(loan_years + 1))
+        trend_data = []
+        for y in years_list:
+            # 剩餘負債
+            paid_months = y * 12
+            remaining_debt = loan_amount * (1 + r_monthly)**paid_months - monthly_payment * ((1 + r_monthly)**paid_months - 1) / r_monthly if paid_months > 0 else loan_amount
+            remaining_debt = max(remaining_debt, 0)
+            # 投資資產
+            inv_val = inv_amount * (1 + exp_return/100) ** y
+            trend_data.append({
+                "年份": f"第{y}年",
+                "投資資產價值": inv_val,
+                "信貸負債餘額": remaining_debt
+            })
+
+        df_trend = pd.DataFrame(trend_data).set_index("年份")
+
+        st.markdown('<p class="section-header">資產 vs 負債走勢</p>', unsafe_allow_html=True)
+        st.line_chart(df_trend, color=["#4f46e5", "#e84040"])
+
+        # 明細表
+        df_credit = pd.DataFrame({
+            "項目": ["貸款金額", "信貸年利率", "貸款年期", "每月還款額",
+                     "總還款金額", "總利息支出", "預期年化報酬率",
+                     f"{loan_years}年後投資終值", "套利淨利潤", "建議"],
+            "數值": [
+                f"${loan_amount:,}", f"{loan_rate}%", f"{loan_years}年",
+                f"${monthly_payment:,.0f}", f"${total_payment:,.0f}",
+                f"${total_interest:,.0f}", f"{exp_return}%",
+                f"${final_inv_val:,.0f}",
+                f"${net_profit:,.0f}",
+                "✅ 正套利，可考慮執行" if arb_spread > 2 else "⚠️ 利差偏小，需謹慎評估" if arb_spread > 0 else "❌ 負套利，不建議"
+            ]
+        })
+        st.dataframe(df_credit, use_container_width=True, hide_index=True)
+
+        # 系統分析
+        advice_credit = f"""【信貸投資套利分析報告】
+
+一、套利空間評估
+信貸利率 {loan_rate}%，預期投資報酬率 {exp_return}%，利差為 {arb_spread:.1f}%。
+{"利差達 " + str(arb_spread) + "%，具備正套利空間，在市場表現符合預期的情況下可產生獲利。" if arb_spread > 0 else "目前預期報酬率低於信貸利率，不具備套利空間，不建議執行。"}
+
+二、現金流壓力分析
+每月需還款 ${monthly_payment:,.0f}，{loan_years}年共還款 ${total_payment:,.0f}，其中利息支出 ${total_interest:,.0f}。
+客戶需確認每月有足夠的現金流支應還款，建議此金額不超過月收入的 30%。
+
+三、風險提醒
+• 投資市場有漲有跌，實際報酬率可能低於預期，甚至虧損
+• 信貸到期仍需還款，無論投資盈虧
+• 建議選擇波動較低的標的（如台灣50 ETF、平衡型基金）降低風險
+• 緊急預備金需維持 6 個月生活費，不可動用
+
+四、適合對象
+此策略適合：月收入穩定、現金流充裕、已有緊急預備金、風險承受度 RR3 以上的投資人。
+
+五、免責聲明
+本試算僅供參考，實際投資結果依市場表現而定。請在充分了解風險後再做決策。"""
+
+        st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
+        render_ai(advice_credit, "系統分析 · 信貸套利")
+
+        pdf_bytes_c = build_pdf(client_name, [
+            {"title": "信貸投資套利試算", "content": None, "table": df_credit},
+            {"title": "分析報告", "content": strip_md(advice_credit), "table": None},
+        ])
+        st.download_button("📥 下載 PDF 報告", pdf_bytes_c,
+                           f"信貸套利_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
+
+# ═══════════════════════════════════════════════════════
+# 模組七：房貸減壓分析
+# ═══════════════════════════════════════════════════════
+elif module == "🏠 房貸減壓分析":
+    st.subheader("🏠 房貸減壓套利分析")
+    st.markdown("""
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 16px;
+                font-size:0.82rem;color:#3730a3;margin-bottom:16px;">
+    📌 <b>策略說明：</b>透過轉增貸或理財型房貸，將部分房屋淨值變現投入市場，
+    以投資配息補貼房貸月付款，改善每月現金流壓力。
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**1. 原房貸狀況**")
+        orig_loan_bal   = st.number_input("原房貸餘額（萬）", value=800, step=50, key="hl_bal")
+        orig_monthly    = st.number_input("原每月還款額（元）", value=32000, step=1000, key="hl_pay")
+        st.markdown("**2. 轉增貸 / 新房貸方案**")
+        st.markdown("**本利攤還型**")
+        hc1, hc2, hc3 = st.columns(3)
+        with hc1: new_loan_a    = st.number_input("金額（萬）", value=800, step=50, key="hl_a_amt")
+        with hc2: new_rate_a    = st.number_input("利率（%）", value=2.1, step=0.1, key="hl_a_rate", format="%.1f")
+        with hc3: new_years_a   = st.number_input("年期", value=30, step=1, key="hl_a_yr")
+        st.markdown("**理財型（寬限期）**")
+        hd1, hd2, hd3 = st.columns(3)
+        with hd1: new_loan_b    = st.number_input("金額（萬）", value=0, step=50, key="hl_b_amt")
+        with hd2: new_rate_b    = st.number_input("利率（%）", value=2.5, step=0.1, key="hl_b_rate", format="%.1f")
+        with hd3: new_years_b   = st.number_input("寬限年期", value=5, step=1, key="hl_b_yr")
+    with col2:
+        st.markdown("**3. 投資設定**")
+        inv_total_hl    = st.number_input("投資總額（萬）", value=0, step=50, key="hl_inv",
+                                           help="轉增貸取得的資金投入市場")
+        exp_return_hl   = st.slider("預期年化報酬率（%）", 1.0, 12.0, 6.0, 0.5, key="hl_ret")
+        st.markdown("**投資標的**")
+        hl_targets = []
+        for i, (name, pct) in enumerate([("006208 富邦台50", 40), ("安聯收益成長", 30), ("統一奔騰基金", 30)]):
+            h1, h2 = st.columns([3,1])
+            with h1: t = st.text_input(f"標的 {i+1}", name, key=f"hl_t{i}")
+            with h2: p = st.number_input("%", value=pct, min_value=0, max_value=100, key=f"hl_p{i}", label_visibility="hidden")
+            hl_targets.append((t, p))
+
+    if st.button("🔍 試算房貸減壓效益", key="btn_house"):
+        st.session_state["run_house"] = True
+
+    if st.session_state.get("run_house"):
+        # ── 本利攤還型月付 ──
+        r_a = new_rate_a / 100 / 12
+        n_a = new_years_a * 12
+        monthly_a = (new_loan_a * 10000) * r_a / (1 - (1 + r_a)**(-n_a)) if r_a > 0 and n_a > 0 else 0
+
+        # ── 理財型（寬限期，只付利息）月付 ──
+        monthly_b = (new_loan_b * 10000) * (new_rate_b / 100 / 12) if new_loan_b > 0 else 0
+
+        total_new_monthly = monthly_a + monthly_b
+        monthly_diff      = orig_monthly - total_new_monthly  # 正 = 減壓，負 = 增加
+
+        # ── 投資配息月收（預估）──
+        inv_monthly_income = (inv_total_hl * 10000) * (exp_return_hl / 100 / 12)
+
+        # ── 實際月現金流改善 ──
+        net_monthly_flow = monthly_diff + inv_monthly_income
+
+        # ── 10 年後投資終值 ──
+        inv_final_10y = (inv_total_hl * 10000) * (1 + exp_return_hl/100) ** 10
+
+        st.markdown('<p class="section-header">房貸減壓試算結果</p>', unsafe_allow_html=True)
+        h1c, h2c, h3c, h4c = st.columns(4)
+        h1c.metric("新方案月付合計", f"${total_new_monthly:,.0f}",
+                   delta=f"{'減少' if monthly_diff >= 0 else '增加'} ${abs(monthly_diff):,.0f}")
+        h2c.metric("投資預估月配息", f"${inv_monthly_income:,.0f}")
+        h3c.metric("每月現金流改善", f"${net_monthly_flow:,.0f}",
+                   delta="減壓成功" if net_monthly_flow > 0 else "需重新評估")
+        h4c.metric("10年後投資終值", f"${inv_final_10y:,.0f}")
+
+        # 現金流走勢圖（10年）
+        cf_data = []
+        for y in range(11):
+            inv_val = (inv_total_hl * 10000) * (1 + exp_return_hl/100)**y
+            # 本利攤還剩餘負債
+            paid_m = y * 12
+            if r_a > 0 and paid_m > 0:
+                rem_a = (new_loan_a*10000)*(1+r_a)**paid_m - monthly_a*((1+r_a)**paid_m-1)/r_a
+            else:
+                rem_a = new_loan_a * 10000
+            rem_a = max(rem_a, 0)
+            # 理財型負債（寬限期內只還息，之後本金不變）
+            rem_b = new_loan_b * 10000
+            cf_data.append({
+                "年份": f"第{y}年",
+                "投資資產": inv_val,
+                "房貸負債": rem_a + rem_b
+            })
+
+        df_cf = pd.DataFrame(cf_data).set_index("年份")
+        st.markdown('<p class="section-header">資產 vs 房貸負債走勢（10年）</p>', unsafe_allow_html=True)
+        st.line_chart(df_cf, color=["#4f46e5", "#e84040"])
+
+        # 明細比較表
+        df_house = pd.DataFrame({
+            "項目": ["原房貸月付", "新方案月付（本利攤）", "理財型寬限月付（利息）",
+                     "新方案月付合計", "月付款差額", "投資金額",
+                     "預估月配息收入", "每月現金流淨改善", "10年後投資終值"],
+            "金額": [
+                f"${orig_monthly:,}", f"${monthly_a:,.0f}", f"${monthly_b:,.0f}",
+                f"${total_new_monthly:,.0f}",
+                f"{'節省' if monthly_diff>=0 else '增加'} ${abs(monthly_diff):,.0f}",
+                f"${inv_total_hl*10000:,}",
+                f"${inv_monthly_income:,.0f}",
+                f"${net_monthly_flow:,.0f}",
+                f"${inv_final_10y:,.0f}"
+            ]
+        })
+        st.dataframe(df_house, use_container_width=True, hide_index=True)
+
+        # 系統分析
+        advice_house = f"""【房貸減壓套利分析報告】
+
+一、策略概述
+客戶現有房貸月付 ${orig_monthly:,} 元。透過轉增貸或理財型房貸重新規劃，
+新方案月付合計 ${total_new_monthly:,.0f} 元，{"每月可節省 $" + f"{abs(monthly_diff):,.0f}" if monthly_diff >= 0 else "月付增加 $" + f"{abs(monthly_diff):,.0f}"}。
+
+二、投資配息補貼效果
+將增貸資金 {inv_total_hl} 萬元投入年化報酬率 {exp_return_hl}% 的標的，
+預估每月配息約 ${inv_monthly_income:,.0f} 元，可補貼部分房貸利息支出。
+每月現金流淨改善 ${net_monthly_flow:,.0f} 元。
+
+三、長期資產增值
+若持續持有，10 年後投資終值預估達 ${inv_final_10y:,.0f} 元，
+若超越房貸餘額，即達到「以投資養房貸」的目標。
+
+四、風險提醒
+• 理財型房貸寬限期結束後，月付將大幅增加，需提前規劃
+• 投資報酬率為預估值，市場波動可能使實際收益低於預期
+• 轉增貸會增加房屋抵押風險，需謹慎評估
+• 建議保留至少 6 個月緊急預備金
+
+五、適合對象
+房屋淨值較高、現金流有壓力、有長期投資規劃、風險承受度 RR3 以上的屋主。"""
+
+        st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
+        render_ai(advice_house, "系統分析 · 房貸減壓")
+
+        pdf_bytes_h = build_pdf(client_name, [
+            {"title": "房貸減壓試算明細", "content": None, "table": df_house},
+            {"title": "分析報告", "content": strip_md(advice_house), "table": None},
+        ])
+        st.download_button("📥 下載 PDF 報告", pdf_bytes_h,
+                           f"房貸減壓_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
