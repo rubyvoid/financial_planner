@@ -1332,13 +1332,28 @@ elif module == "💳 信貸投資套利":
         inv_amount     = st.number_input("實際投資金額（元）", value=1000000, step=50000, key="cl_inv",
                                           help="通常等於貸款金額")
         exp_return     = st.slider("預期年化報酬率（%）", 1.0, 15.0, 7.0, 0.5, key="cl_ret")
-        st.markdown("**投資標的配置**")
+        st.markdown("**投資標的配置（1～3個，比例合計需為100%）**")
+        cl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="cl_num")
+        defaults_cl = [("006208 富邦台50", 50), ("安聯收益成長", 50), ("統一奔騰基金", 0)]
+        if cl_num == 1:
+            defaults_cl = [("006208 富邦台50", 100), ("", 0), ("", 0)]
+        elif cl_num == 2:
+            defaults_cl = [("006208 富邦台50", 50), ("安聯收益成長", 50), ("", 0)]
         cl_targets = []
-        for i, (name, pct) in enumerate([("006208 富邦台50", 40), ("安聯收益成長", 30), ("統一奔騰基金", 30)]):
-            c1, c2 = st.columns([3,1])
-            with c1: t = st.text_input(f"標的 {i+1}", name, key=f"cl_t{i}")
-            with c2: p = st.number_input("%", value=pct, min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="hidden")
+        for i in range(cl_num):
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                t = st.text_input(f"標的 {i+1} 名稱", value=defaults_cl[i][0], key=f"cl_t{i}")
+            with c2:
+                p = st.number_input(f"比例 {i+1} (%)", value=defaults_cl[i][1],
+                                    min_value=0, max_value=100, key=f"cl_p{i}",
+                                    label_visibility="collapsed")
             cl_targets.append((t, p))
+        total_cl_pct = sum(p for _, p in cl_targets)
+        if total_cl_pct == 100:
+            st.success(f"✅ 比例合計 {total_cl_pct}%")
+        else:
+            st.warning(f"⚠️ 比例合計 {total_cl_pct}%，請調整至 100%")
 
     if st.button("🔍 試算套利效益", key="btn_credit"):
         st.session_state["run_credit"] = True
@@ -1472,13 +1487,28 @@ elif module == "🏠 房貸減壓分析":
         inv_total_hl    = st.number_input("投資總額（萬）", value=0, step=50, key="hl_inv",
                                            help="轉增貸取得的資金投入市場")
         exp_return_hl   = st.slider("預期年化報酬率（%）", 1.0, 12.0, 6.0, 0.5, key="hl_ret")
-        st.markdown("**投資標的**")
+        st.markdown("**投資標的（1～3個，比例合計需為100%）**")
+        hl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="hl_num")
+        defaults_hl = [("006208 富邦台50", 50), ("安聯收益成長", 50), ("統一奔騰基金", 0)]
+        if hl_num == 1:
+            defaults_hl = [("006208 富邦台50", 100), ("", 0), ("", 0)]
+        elif hl_num == 2:
+            defaults_hl = [("006208 富邦台50", 50), ("安聯收益成長", 50), ("", 0)]
         hl_targets = []
-        for i, (name, pct) in enumerate([("006208 富邦台50", 40), ("安聯收益成長", 30), ("統一奔騰基金", 30)]):
-            h1, h2 = st.columns([3,1])
-            with h1: t = st.text_input(f"標的 {i+1}", name, key=f"hl_t{i}")
-            with h2: p = st.number_input("%", value=pct, min_value=0, max_value=100, key=f"hl_p{i}", label_visibility="hidden")
+        for i in range(hl_num):
+            h1, h2 = st.columns([3, 1])
+            with h1:
+                t = st.text_input(f"標的 {i+1} 名稱", value=defaults_hl[i][0], key=f"hl_t{i}")
+            with h2:
+                p = st.number_input(f"比例 {i+1} (%)", value=defaults_hl[i][1],
+                                    min_value=0, max_value=100, key=f"hl_p{i}",
+                                    label_visibility="collapsed")
             hl_targets.append((t, p))
+        total_hl_pct = sum(p for _, p in hl_targets)
+        if total_hl_pct == 100:
+            st.success(f"✅ 比例合計 {total_hl_pct}%")
+        else:
+            st.warning(f"⚠️ 比例合計 {total_hl_pct}%，請調整至 100%")
 
     if st.button("🔍 試算房貸減壓效益", key="btn_house"):
         st.session_state["run_house"] = True
