@@ -1355,10 +1355,7 @@ elif module == "💳 信貸投資套利":
         else:
             st.warning(f"⚠️ 比例合計 {total_cl_pct}%，請調整至 100%")
 
-    if st.button("🔍 試算套利效益", key="btn_credit"):
-        st.session_state["run_credit"] = True
-
-    if st.session_state.get("run_credit"):
+    if total_cl_pct == 100:
         r_monthly   = loan_rate / 100 / 12
         n_months    = loan_years * 12
         # 月還款額（本利攤還）
@@ -1510,10 +1507,7 @@ elif module == "🏠 房貸減壓分析":
         else:
             st.warning(f"⚠️ 比例合計 {total_hl_pct}%，請調整至 100%")
 
-    if st.button("🔍 試算房貸減壓效益", key="btn_house"):
-        st.session_state["run_house"] = True
-
-    if st.session_state.get("run_house"):
+    if total_hl_pct == 100:
         # ── 本利攤還型月付 ──
         r_a = new_rate_a / 100 / 12
         n_a = new_years_a * 12
