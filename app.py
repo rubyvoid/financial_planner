@@ -458,6 +458,68 @@ def calculate_dca(df_nav, monthly):
     fv  = rows[-1]['資產市值']
     return res, inv, fv, ((fv-inv)/inv)*100
 
+
+# ═══════════════════════════════════════════════════════
+# 共用：從淨值歷史計算年化報酬率（CAGR）
+# ═══════════════════════════════════════════════════════
+@st.cache_data(ttl=3600)
+def get_cagr(ticker, ticker_type, years=3):
+    """從歷史淨值計算 N 年 CAGR，基金用鉅亨，ETF/股票用 yfinance"""
+    try:
+        if ticker_type == "基金":
+            headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://fund.cnyes.com/"}
+            res = requests.get(
+                f"https://fund.api.cnyes.com/fund/api/v1/funds/{ticker}/nav?format=table&page=1",
+                headers=headers, timeout=10)
+            items = res.json().get('items', {}).get('data', [])
+            if not items:
+                return None, "查無資料"
+            df = pd.DataFrame(items)
+            date_col = next((c for c in ['tradeDate','date','navDate','datetime'] if c in df.columns), None)
+            nav_col  = next((c for c in ['nav','nav_price','price'] if c in df.columns), None)
+            if not date_col or not nav_col:
+                return None, "欄位錯誤"
+            raw = pd.to_numeric(df[date_col], errors='coerce')
+            if raw.dropna().iloc[0] > 1e9:
+                df['date'] = pd.to_datetime(raw, unit='s', errors='coerce')
+            else:
+                df['date'] = pd.to_datetime(df[date_col], errors='coerce')
+            df['nav'] = pd.to_numeric(df[nav_col], errors='coerce')
+            df = df.dropna(subset=['date','nav']).sort_values('date')
+        else:
+            tid = f"{ticker}.TW" if ticker.isdigit() or len(ticker)==4 else ticker
+            hist = yf.Ticker(tid).history(period=f"{years+1}y")
+            if hist.empty:
+                return None, f"找不到 {tid}"
+            df = hist.reset_index()[['Date','Close']].rename(columns={'Date':'date','Close':'nav'})
+            df['date'] = df['date'].dt.tz_localize(None)
+            df = df.sort_values('date')
+
+        if len(df) < 2:
+            return None, "資料不足"
+
+        end_val   = df['nav'].iloc[-1]
+        # 找最接近 N 年前的資料
+        target_date = df['date'].iloc[-1] - pd.DateOffset(years=years)
+        past_df = df[df['date'] <= target_date]
+        if past_df.empty:
+            # 資料不足 N 年，用全部資料估算
+            start_val = df['nav'].iloc[0]
+            actual_years = (df['date'].iloc[-1] - df['date'].iloc[0]).days / 365.25
+        else:
+            start_val = past_df['nav'].iloc[-1]
+            actual_years = years
+
+        if start_val <= 0 or actual_years <= 0:
+            return None, "計算錯誤"
+
+        cagr = ((end_val / start_val) ** (1 / actual_years) - 1) * 100
+        return round(cagr, 2), f"{actual_years:.1f}年CAGR"
+    except Exception as e:
+        return None, str(e)
+
+
+
 # ─────────────────────────────────────────────
 # 側邊欄導航
 # ─────────────────────────────────────────────
@@ -1308,6 +1370,7 @@ elif module == "🧾 稅務規劃":
             st.download_button("📥 下載 PDF 報告", pdf_bytes_e,
                                f"遺產規劃_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
 
+
 # ═══════════════════════════════════════════════════════
 # 模組六：信貸投資套利試算
 # ═══════════════════════════════════════════════════════
@@ -1324,52 +1387,69 @@ elif module == "💳 信貸投資套利":
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**信貸條件**")
-        loan_amount    = st.number_input("貸款金額（元）", value=1000000, step=50000, key="cl_amt")
-        loan_rate      = st.slider("信貸年利率（%）", 1.0, 8.0, 2.5, 0.1, key="cl_rate")
-        loan_years     = st.number_input("貸款年期（年）", value=7, min_value=1, max_value=10, key="cl_yr")
+        loan_amount = st.number_input("貸款金額（元）", value=1000000, step=50000, key="cl_amt")
+        loan_rate   = st.slider("信貸年利率（%）", 1.0, 8.0, 2.5, 0.1, key="cl_rate")
+        loan_years  = st.number_input("貸款年期（年）", value=7, min_value=1, max_value=10, key="cl_yr")
     with col2:
         st.markdown("**投資設定**")
-        inv_amount     = st.number_input("實際投資金額（元）", value=1000000, step=50000, key="cl_inv",
-                                          help="通常等於貸款金額")
-        exp_return     = st.slider("預期年化報酬率（%）", 1.0, 15.0, 7.0, 0.5, key="cl_ret")
+        inv_amount  = st.number_input("實際投資金額（元）", value=1000000, step=50000, key="cl_inv",
+                                       help="通常等於貸款金額")
         st.markdown("**投資標的配置（1～3個，比例合計需為100%）**")
         cl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="cl_num")
-        defaults_cl = [("006208 富邦台50", 50), ("安聯收益成長", 50), ("統一奔騰基金", 0)]
-        if cl_num == 1:
-            defaults_cl = [("006208 富邦台50", 100), ("", 0), ("", 0)]
-        elif cl_num == 2:
-            defaults_cl = [("006208 富邦台50", 50), ("安聯收益成長", 50), ("", 0)]
+        defaults_cl_name = ["006208 富邦台50", "安聯收益成長", "統一奔騰基金"]
+        defaults_cl_type = ["ETF/股票", "基金", "基金"]
+        defaults_cl_id   = ["006208", "B2abw8B", "B090460"]
+        defaults_cl_pct  = [50, 50, 0] if cl_num == 2 else ([100, 0, 0] if cl_num == 1 else [40, 30, 30])
         cl_targets = []
         for i in range(cl_num):
-            c1, c2 = st.columns([3, 1])
-            with c1:
-                t = st.text_input(f"標的 {i+1} 名稱", value=defaults_cl[i][0], key=f"cl_t{i}")
-            with c2:
-                p = st.number_input(f"比例 {i+1} (%)", value=defaults_cl[i][1],
-                                    min_value=0, max_value=100, key=f"cl_p{i}",
-                                    label_visibility="collapsed")
-            cl_targets.append((t, p))
-        total_cl_pct = sum(p for _, p in cl_targets)
+            c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+            with c1: t = st.text_input(f"標的{i+1}名稱", value=defaults_cl_name[i], key=f"cl_t{i}")
+            with c2: tid = st.text_input(f"代碼{i+1}", value=defaults_cl_id[i], key=f"cl_tid{i}")
+            with c3: ttype = st.selectbox(f"類型{i+1}", ["ETF/股票","基金"], index=["ETF/股票","基金"].index(defaults_cl_type[i]), key=f"cl_tt{i}", label_visibility="collapsed")
+            with c4: p = st.number_input(f"比例{i+1}%", value=defaults_cl_pct[i], min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
+            cl_targets.append((t, tid, ttype, p))
+
+        total_cl_pct = sum(x[3] for x in cl_targets)
         if total_cl_pct == 100:
             st.success(f"✅ 比例合計 {total_cl_pct}%")
         else:
             st.warning(f"⚠️ 比例合計 {total_cl_pct}%，請調整至 100%")
 
     if total_cl_pct == 100:
-        r_monthly   = loan_rate / 100 / 12
-        n_months    = loan_years * 12
-        # 月還款額（本利攤還）
+        # 抓取各標的 CAGR 並加權計算組合報酬率
+        st.markdown('<p class="section-header">抓取標的歷史報酬率</p>', unsafe_allow_html=True)
+        cagr_results = []
+        weighted_return = 0
+        all_ok = True
+        for name, tid, ttype, pct in cl_targets:
+            ctype = "基金" if ttype == "基金" else "股票"
+            cagr, label = get_cagr(tid, ctype, years=3)
+            if cagr is None:
+                st.warning(f"⚠️ {name}（{tid}）：{label}，請手動輸入報酬率")
+                manual = st.number_input(f"{name} 預期年化報酬率（%）", value=7.0, key=f"cl_manual_{tid}")
+                cagr = manual
+            cagr_results.append((name, tid, pct, cagr, label))
+            weighted_return += cagr * pct / 100
+
+        df_cagr = pd.DataFrame({
+            "標的": [x[0] for x in cagr_results],
+            "代碼": [x[1] for x in cagr_results],
+            "比例": [f"{x[2]}%" for x in cagr_results],
+            "近3年CAGR": [f"{x[3]:.2f}%" for x in cagr_results],
+            "資料說明": [x[4] for x in cagr_results],
+        })
+        st.dataframe(df_cagr, use_container_width=True, hide_index=True)
+        st.info(f"**組合加權年化報酬率：{weighted_return:.2f}%**（各標的CAGR依比例加權）")
+
+        # 套利計算
+        r_monthly = loan_rate / 100 / 12
+        n_months  = loan_years * 12
         monthly_payment = loan_amount * r_monthly / (1 - (1 + r_monthly) ** (-n_months))
         total_payment   = monthly_payment * n_months
         total_interest  = total_payment - loan_amount
-
-        # 投資終值
-        inv_r_monthly = exp_return / 100 / 12
-        final_inv_val = inv_amount * (1 + exp_return/100) ** loan_years
-
-        # 套利淨利
+        final_inv_val   = inv_amount * (1 + weighted_return/100) ** loan_years
         net_profit  = final_inv_val - total_payment
-        arb_spread  = exp_return - loan_rate
+        arb_spread  = weighted_return - loan_rate
 
         st.markdown('<p class="section-header">套利試算結果</p>', unsafe_allow_html=True)
         k1, k2, k3, k4 = st.columns(4)
@@ -1380,75 +1460,65 @@ elif module == "💳 信貸投資套利":
         k4.metric("扣除還款後淨利", f"${net_profit:,.0f}",
                   delta="獲利" if net_profit > 0 else "虧損")
 
-        # 走勢圖：負債 vs 資產
+        # 走勢圖
         years_list = list(range(loan_years + 1))
         trend_data = []
         for y in years_list:
-            # 剩餘負債
             paid_months = y * 12
-            remaining_debt = loan_amount * (1 + r_monthly)**paid_months - monthly_payment * ((1 + r_monthly)**paid_months - 1) / r_monthly if paid_months > 0 else loan_amount
+            if r_monthly > 0 and paid_months > 0:
+                remaining_debt = loan_amount * (1+r_monthly)**paid_months - monthly_payment * ((1+r_monthly)**paid_months-1) / r_monthly
+            else:
+                remaining_debt = loan_amount
             remaining_debt = max(remaining_debt, 0)
-            # 投資資產
-            inv_val = inv_amount * (1 + exp_return/100) ** y
-            trend_data.append({
-                "年份": f"第{y}年",
-                "投資資產價值": inv_val,
-                "信貸負債餘額": remaining_debt
-            })
+            inv_val = inv_amount * (1 + weighted_return/100) ** y
+            trend_data.append({"年份": f"第{y}年", "投資資產價值": inv_val, "信貸負債餘額": remaining_debt})
 
-        df_trend = pd.DataFrame(trend_data).set_index("年份")
+        st.markdown('<p class="section-header">資產 vs 負債走勢（依組合報酬率）</p>', unsafe_allow_html=True)
+        st.line_chart(pd.DataFrame(trend_data).set_index("年份"), color=["#4f46e5","#e84040"])
 
-        st.markdown('<p class="section-header">資產 vs 負債走勢</p>', unsafe_allow_html=True)
-        st.line_chart(df_trend, color=["#4f46e5", "#e84040"])
-
-        # 明細表
         df_credit = pd.DataFrame({
-            "項目": ["貸款金額", "信貸年利率", "貸款年期", "每月還款額",
-                     "總還款金額", "總利息支出", "預期年化報酬率",
-                     f"{loan_years}年後投資終值", "套利淨利潤", "建議"],
-            "數值": [
-                f"${loan_amount:,}", f"{loan_rate}%", f"{loan_years}年",
-                f"${monthly_payment:,.0f}", f"${total_payment:,.0f}",
-                f"${total_interest:,.0f}", f"{exp_return}%",
-                f"${final_inv_val:,.0f}",
-                f"${net_profit:,.0f}",
-                "✅ 正套利，可考慮執行" if arb_spread > 2 else "⚠️ 利差偏小，需謹慎評估" if arb_spread > 0 else "❌ 負套利，不建議"
-            ]
+            "項目": ["貸款金額","信貸年利率","貸款年期","每月還款額",
+                     "總還款金額","總利息支出","組合加權報酬率",
+                     f"{loan_years}年後投資終值","套利淨利潤","建議"],
+            "數值": [f"${loan_amount:,}", f"{loan_rate}%", f"{loan_years}年",
+                    f"${monthly_payment:,.0f}", f"${total_payment:,.0f}",
+                    f"${total_interest:,.0f}", f"{weighted_return:.2f}%",
+                    f"${final_inv_val:,.0f}", f"${net_profit:,.0f}",
+                    "✅ 正套利，可考慮執行" if arb_spread > 2 else
+                    "⚠️ 利差偏小，需謹慎評估" if arb_spread > 0 else "❌ 負套利，不建議"]
         })
         st.dataframe(df_credit, use_container_width=True, hide_index=True)
 
-        # 系統分析
         advice_credit = f"""【信貸投資套利分析報告】
 
 一、套利空間評估
-信貸利率 {loan_rate}%，預期投資報酬率 {exp_return}%，利差為 {arb_spread:.1f}%。
-{"利差達 " + str(arb_spread) + "%，具備正套利空間，在市場表現符合預期的情況下可產生獲利。" if arb_spread > 0 else "目前預期報酬率低於信貸利率，不具備套利空間，不建議執行。"}
+信貸利率 {loan_rate}%，組合加權年化報酬率 {weighted_return:.2f}%（依各標的近3年實際CAGR加權），
+利差為 {arb_spread:.1f}%。{"具備正套利空間。" if arb_spread > 0 else "目前不具備套利空間，不建議執行。"}
 
 二、現金流壓力分析
-每月需還款 ${monthly_payment:,.0f}，{loan_years}年共還款 ${total_payment:,.0f}，其中利息支出 ${total_interest:,.0f}。
-客戶需確認每月有足夠的現金流支應還款，建議此金額不超過月收入的 30%。
+每月需還款 ${monthly_payment:,.0f}，{loan_years}年共還款 ${total_payment:,.0f}，其中利息 ${total_interest:,.0f}。
+建議此金額不超過月收入的 30%。
 
 三、風險提醒
-• 投資市場有漲有跌，實際報酬率可能低於預期，甚至虧損
+• 上述CAGR為過去績效，不代表未來報酬
 • 信貸到期仍需還款，無論投資盈虧
-• 建議選擇波動較低的標的（如台灣50 ETF、平衡型基金）降低風險
-• 緊急預備金需維持 6 個月生活費，不可動用
+• 建議選擇波動較低的標的降低風險
+• 緊急預備金需維持 6 個月生活費不可動用
 
-四、適合對象
-此策略適合：月收入穩定、現金流充裕、已有緊急預備金、風險承受度 RR3 以上的投資人。
-
-五、免責聲明
-本試算僅供參考，實際投資結果依市場表現而定。請在充分了解風險後再做決策。"""
+四、免責聲明
+本試算僅供參考，請在充分了解風險後再做決策。"""
 
         st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         render_ai(advice_credit, "系統分析 · 信貸套利")
 
         pdf_bytes_c = build_pdf(client_name, [
-            {"title": "信貸投資套利試算", "content": None, "table": df_credit},
+            {"title": "標的報酬率", "content": None, "table": df_cagr},
+            {"title": "信貸套利試算", "content": None, "table": df_credit},
             {"title": "分析報告", "content": strip_md(advice_credit), "table": None},
         ])
         st.download_button("📥 下載 PDF 報告", pdf_bytes_c,
                            f"信貸套利_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
+
 
 # ═══════════════════════════════════════════════════════
 # 模組七：房貸減壓分析
@@ -1466,147 +1536,144 @@ elif module == "🏠 房貸減壓分析":
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**1. 原房貸狀況**")
-        orig_loan_bal   = st.number_input("原房貸餘額（萬）", value=800, step=50, key="hl_bal")
-        orig_monthly    = st.number_input("原每月還款額（元）", value=32000, step=1000, key="hl_pay")
+        orig_loan_bal = st.number_input("原房貸餘額（萬）", value=800, step=50, key="hl_bal")
+        orig_monthly  = st.number_input("原每月還款額（元）", value=32000, step=1000, key="hl_pay")
         st.markdown("**2. 轉增貸 / 新房貸方案**")
         st.markdown("**本利攤還型**")
         hc1, hc2, hc3 = st.columns(3)
-        with hc1: new_loan_a    = st.number_input("金額（萬）", value=800, step=50, key="hl_a_amt")
-        with hc2: new_rate_a    = st.number_input("利率（%）", value=2.1, step=0.1, key="hl_a_rate", format="%.1f")
-        with hc3: new_years_a   = st.number_input("年期", value=30, step=1, key="hl_a_yr")
+        with hc1: new_loan_a  = st.number_input("金額（萬）", value=800, step=50, key="hl_a_amt")
+        with hc2: new_rate_a  = st.number_input("利率（%）", value=2.1, step=0.1, key="hl_a_rate", format="%.1f")
+        with hc3: new_years_a = st.number_input("年期", value=30, step=1, key="hl_a_yr")
         st.markdown("**理財型（寬限期）**")
         hd1, hd2, hd3 = st.columns(3)
-        with hd1: new_loan_b    = st.number_input("金額（萬）", value=0, step=50, key="hl_b_amt")
-        with hd2: new_rate_b    = st.number_input("利率（%）", value=2.5, step=0.1, key="hl_b_rate", format="%.1f")
-        with hd3: new_years_b   = st.number_input("寬限年期", value=5, step=1, key="hl_b_yr")
+        with hd1: new_loan_b  = st.number_input("金額（萬）", value=0, step=50, key="hl_b_amt")
+        with hd2: new_rate_b  = st.number_input("利率（%）", value=2.5, step=0.1, key="hl_b_rate", format="%.1f")
+        with hd3: new_years_b = st.number_input("寬限年期", value=5, step=1, key="hl_b_yr")
     with col2:
         st.markdown("**3. 投資設定**")
-        inv_total_hl    = st.number_input("投資總額（萬）", value=0, step=50, key="hl_inv",
-                                           help="轉增貸取得的資金投入市場")
-        exp_return_hl   = st.slider("預期年化報酬率（%）", 1.0, 12.0, 6.0, 0.5, key="hl_ret")
+        inv_total_hl = st.number_input("投資總額（萬）", value=100, step=50, key="hl_inv",
+                                        help="轉增貸取得的資金投入市場")
         st.markdown("**投資標的（1～3個，比例合計需為100%）**")
         hl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="hl_num")
-        defaults_hl = [("006208 富邦台50", 50), ("安聯收益成長", 50), ("統一奔騰基金", 0)]
-        if hl_num == 1:
-            defaults_hl = [("006208 富邦台50", 100), ("", 0), ("", 0)]
-        elif hl_num == 2:
-            defaults_hl = [("006208 富邦台50", 50), ("安聯收益成長", 50), ("", 0)]
+        defaults_hl_name = ["006208 富邦台50", "安聯收益成長", "統一奔騰基金"]
+        defaults_hl_type = ["ETF/股票", "基金", "基金"]
+        defaults_hl_id   = ["006208", "B2abw8B", "B090460"]
+        defaults_hl_pct  = [50, 50, 0] if hl_num == 2 else ([100, 0, 0] if hl_num == 1 else [40, 30, 30])
         hl_targets = []
         for i in range(hl_num):
-            h1, h2 = st.columns([3, 1])
-            with h1:
-                t = st.text_input(f"標的 {i+1} 名稱", value=defaults_hl[i][0], key=f"hl_t{i}")
-            with h2:
-                p = st.number_input(f"比例 {i+1} (%)", value=defaults_hl[i][1],
-                                    min_value=0, max_value=100, key=f"hl_p{i}",
-                                    label_visibility="collapsed")
-            hl_targets.append((t, p))
-        total_hl_pct = sum(p for _, p in hl_targets)
+            h1, h2, h3, h4 = st.columns([2, 1, 1, 1])
+            with h1: t = st.text_input(f"標的{i+1}名稱", value=defaults_hl_name[i], key=f"hl_t{i}")
+            with h2: tid = st.text_input(f"代碼{i+1}", value=defaults_hl_id[i], key=f"hl_tid{i}")
+            with h3: ttype = st.selectbox(f"類型{i+1}", ["ETF/股票","基金"], index=["ETF/股票","基金"].index(defaults_hl_type[i]), key=f"hl_tt{i}", label_visibility="collapsed")
+            with h4: p = st.number_input(f"比例{i+1}%", value=defaults_hl_pct[i], min_value=0, max_value=100, key=f"hl_p{i}", label_visibility="collapsed")
+            hl_targets.append((t, tid, ttype, p))
+
+        total_hl_pct = sum(x[3] for x in hl_targets)
         if total_hl_pct == 100:
             st.success(f"✅ 比例合計 {total_hl_pct}%")
         else:
             st.warning(f"⚠️ 比例合計 {total_hl_pct}%，請調整至 100%")
 
     if total_hl_pct == 100:
-        # ── 本利攤還型月付 ──
+        # 抓取各標的 CAGR
+        st.markdown('<p class="section-header">抓取標的歷史報酬率</p>', unsafe_allow_html=True)
+        hl_cagr_results = []
+        hl_weighted_return = 0
+        for name, tid, ttype, pct in hl_targets:
+            ctype = "基金" if ttype == "基金" else "股票"
+            cagr, label = get_cagr(tid, ctype, years=3)
+            if cagr is None:
+                st.warning(f"⚠️ {name}（{tid}）：{label}，請手動輸入")
+                manual = st.number_input(f"{name} 預期年化報酬率（%）", value=6.0, key=f"hl_manual_{tid}")
+                cagr = manual
+            hl_cagr_results.append((name, tid, pct, cagr, label))
+            hl_weighted_return += cagr * pct / 100
+
+        df_hl_cagr = pd.DataFrame({
+            "標的": [x[0] for x in hl_cagr_results],
+            "代碼": [x[1] for x in hl_cagr_results],
+            "比例": [f"{x[2]}%" for x in hl_cagr_results],
+            "近3年CAGR": [f"{x[3]:.2f}%" for x in hl_cagr_results],
+        })
+        st.dataframe(df_hl_cagr, use_container_width=True, hide_index=True)
+        st.info(f"**組合加權年化報酬率：{hl_weighted_return:.2f}%**")
+
+        # 月付計算
         r_a = new_rate_a / 100 / 12
         n_a = new_years_a * 12
-        monthly_a = (new_loan_a * 10000) * r_a / (1 - (1 + r_a)**(-n_a)) if r_a > 0 and n_a > 0 else 0
-
-        # ── 理財型（寬限期，只付利息）月付 ──
-        monthly_b = (new_loan_b * 10000) * (new_rate_b / 100 / 12) if new_loan_b > 0 else 0
-
+        monthly_a = (new_loan_a*10000)*r_a/(1-(1+r_a)**(-n_a)) if r_a>0 and n_a>0 else 0
+        monthly_b = (new_loan_b*10000)*(new_rate_b/100/12) if new_loan_b>0 else 0
         total_new_monthly = monthly_a + monthly_b
-        monthly_diff      = orig_monthly - total_new_monthly  # 正 = 減壓，負 = 增加
-
-        # ── 投資配息月收（預估）──
-        inv_monthly_income = (inv_total_hl * 10000) * (exp_return_hl / 100 / 12)
-
-        # ── 實際月現金流改善 ──
+        monthly_diff = orig_monthly - total_new_monthly
+        inv_monthly_income = (inv_total_hl*10000)*(hl_weighted_return/100/12)
         net_monthly_flow = monthly_diff + inv_monthly_income
-
-        # ── 10 年後投資終值 ──
-        inv_final_10y = (inv_total_hl * 10000) * (1 + exp_return_hl/100) ** 10
+        inv_final_10y = (inv_total_hl*10000)*(1+hl_weighted_return/100)**10
 
         st.markdown('<p class="section-header">房貸減壓試算結果</p>', unsafe_allow_html=True)
         h1c, h2c, h3c, h4c = st.columns(4)
         h1c.metric("新方案月付合計", f"${total_new_monthly:,.0f}",
-                   delta=f"{'減少' if monthly_diff >= 0 else '增加'} ${abs(monthly_diff):,.0f}")
+                   delta=f"{'節省' if monthly_diff>=0 else '增加'} ${abs(monthly_diff):,.0f}")
         h2c.metric("投資預估月配息", f"${inv_monthly_income:,.0f}")
         h3c.metric("每月現金流改善", f"${net_monthly_flow:,.0f}",
-                   delta="減壓成功" if net_monthly_flow > 0 else "需重新評估")
+                   delta="減壓成功" if net_monthly_flow>0 else "需重新評估")
         h4c.metric("10年後投資終值", f"${inv_final_10y:,.0f}")
 
-        # 現金流走勢圖（10年）
+        # 走勢圖（依真實CAGR）
         cf_data = []
         for y in range(11):
-            inv_val = (inv_total_hl * 10000) * (1 + exp_return_hl/100)**y
-            # 本利攤還剩餘負債
-            paid_m = y * 12
-            if r_a > 0 and paid_m > 0:
+            inv_val = (inv_total_hl*10000)*(1+hl_weighted_return/100)**y
+            paid_m = y*12
+            if r_a>0 and paid_m>0:
                 rem_a = (new_loan_a*10000)*(1+r_a)**paid_m - monthly_a*((1+r_a)**paid_m-1)/r_a
             else:
-                rem_a = new_loan_a * 10000
+                rem_a = new_loan_a*10000
             rem_a = max(rem_a, 0)
-            # 理財型負債（寬限期內只還息，之後本金不變）
-            rem_b = new_loan_b * 10000
-            cf_data.append({
-                "年份": f"第{y}年",
-                "投資資產": inv_val,
-                "房貸負債": rem_a + rem_b
-            })
+            rem_b = new_loan_b*10000
+            cf_data.append({"年份": f"第{y}年", "投資資產": inv_val, "房貸負債": rem_a+rem_b})
 
-        df_cf = pd.DataFrame(cf_data).set_index("年份")
         st.markdown('<p class="section-header">資產 vs 房貸負債走勢（10年）</p>', unsafe_allow_html=True)
-        st.line_chart(df_cf, color=["#4f46e5", "#e84040"])
+        st.line_chart(pd.DataFrame(cf_data).set_index("年份"), color=["#4f46e5","#e84040"])
 
-        # 明細比較表
         df_house = pd.DataFrame({
-            "項目": ["原房貸月付", "新方案月付（本利攤）", "理財型寬限月付（利息）",
-                     "新方案月付合計", "月付款差額", "投資金額",
-                     "預估月配息收入", "每月現金流淨改善", "10年後投資終值"],
-            "金額": [
-                f"${orig_monthly:,}", f"${monthly_a:,.0f}", f"${monthly_b:,.0f}",
-                f"${total_new_monthly:,.0f}",
-                f"{'節省' if monthly_diff>=0 else '增加'} ${abs(monthly_diff):,.0f}",
-                f"${inv_total_hl*10000:,}",
-                f"${inv_monthly_income:,.0f}",
-                f"${net_monthly_flow:,.0f}",
-                f"${inv_final_10y:,.0f}"
-            ]
+            "項目": ["原房貸月付","新方案月付（本利攤）","理財型寬限月付",
+                     "新方案月付合計","月付款差額","投資金額",
+                     "組合加權年化報酬率","預估月配息收入","每月現金流淨改善","10年後投資終值"],
+            "金額": [f"${orig_monthly:,}", f"${monthly_a:,.0f}", f"${monthly_b:,.0f}",
+                    f"${total_new_monthly:,.0f}",
+                    f"{'節省' if monthly_diff>=0 else '增加'} ${abs(monthly_diff):,.0f}",
+                    f"${inv_total_hl*10000:,}", f"{hl_weighted_return:.2f}%",
+                    f"${inv_monthly_income:,.0f}", f"${net_monthly_flow:,.0f}",
+                    f"${inv_final_10y:,.0f}"]
         })
         st.dataframe(df_house, use_container_width=True, hide_index=True)
 
-        # 系統分析
         advice_house = f"""【房貸減壓套利分析報告】
 
 一、策略概述
-客戶現有房貸月付 ${orig_monthly:,} 元。透過轉增貸或理財型房貸重新規劃，
-新方案月付合計 ${total_new_monthly:,.0f} 元，{"每月可節省 $" + f"{abs(monthly_diff):,.0f}" if monthly_diff >= 0 else "月付增加 $" + f"{abs(monthly_diff):,.0f}"}。
+原房貸月付 ${orig_monthly:,} 元。新方案月付 ${total_new_monthly:,.0f} 元，
+{"每月節省 $" + f"{abs(monthly_diff):,.0f}" if monthly_diff>=0 else "月付增加 $" + f"{abs(monthly_diff):,.0f}"}。
 
 二、投資配息補貼效果
-將增貸資金 {inv_total_hl} 萬元投入年化報酬率 {exp_return_hl}% 的標的，
-預估每月配息約 ${inv_monthly_income:,.0f} 元，可補貼部分房貸利息支出。
-每月現金流淨改善 ${net_monthly_flow:,.0f} 元。
+投資 {inv_total_hl} 萬，組合加權報酬率 {hl_weighted_return:.2f}%（依各標的近3年實際CAGR），
+預估每月配息 ${inv_monthly_income:,.0f}，每月現金流淨改善 ${net_monthly_flow:,.0f} 元。
 
-三、長期資產增值
-若持續持有，10 年後投資終值預估達 ${inv_final_10y:,.0f} 元，
-若超越房貸餘額，即達到「以投資養房貸」的目標。
+三、長期展望
+10年後投資終值預估 ${inv_final_10y:,.0f} 元。
 
 四、風險提醒
-• 理財型房貸寬限期結束後，月付將大幅增加，需提前規劃
-• 投資報酬率為預估值，市場波動可能使實際收益低於預期
-• 轉增貸會增加房屋抵押風險，需謹慎評估
-• 建議保留至少 6 個月緊急預備金
+• CAGR為過去績效，不代表未來表現
+• 理財型寬限期結束後月付將大幅增加，需提前規劃
+• 轉增貸會增加房屋抵押風險
 
-五、適合對象
-房屋淨值較高、現金流有壓力、有長期投資規劃、風險承受度 RR3 以上的屋主。"""
+五、免責聲明
+本試算依過去數據估算，實際結果以市場表現為準。"""
 
         st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         render_ai(advice_house, "系統分析 · 房貸減壓")
 
         pdf_bytes_h = build_pdf(client_name, [
-            {"title": "房貸減壓試算明細", "content": None, "table": df_house},
+            {"title": "標的報酬率", "content": None, "table": df_hl_cagr},
+            {"title": "房貸減壓試算", "content": None, "table": df_house},
             {"title": "分析報告", "content": strip_md(advice_house), "table": None},
         ])
         st.download_button("📥 下載 PDF 報告", pdf_bytes_h,
