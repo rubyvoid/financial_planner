@@ -1416,42 +1416,30 @@ elif module == "💳 信貸投資套利":
             st.warning(f"⚠️ 比例合計 {total_cl_pct}%，請調整至 100%")
 
     if total_cl_pct == 100:
-        # 抓取各標的 CAGR，顯示參考，讓用戶設定合理預期報酬率
-        st.markdown('<p class="section-header">標的歷史報酬率（參考）與預期報酬率設定</p>', unsafe_allow_html=True)
-        st.caption("近3年CAGR僅供參考，請依自身判斷設定合理的預期年化報酬率（建議不超過12~15%）")
+        # 抓取各標的 CAGR 並加權計算組合報酬率
+        st.markdown('<p class="section-header">抓取標的歷史報酬率</p>', unsafe_allow_html=True)
         cagr_results = []
         weighted_return = 0
+        all_ok = True
         for name, tid, ttype, pct in cl_targets:
             ctype = "基金" if ttype == "基金" else "股票"
             cagr, label = get_cagr(tid, ctype, years=3)
-            # 合理預期值：CAGR 若超過 15% 則建議上限 12%
             if cagr is None:
-                suggested = 7.0
-                cagr_display = "無法取得"
-            else:
-                suggested = round(min(cagr, 12.0), 1)
-                cagr_display = f"{cagr:.2f}%"
-                if cagr > 15:
-                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 偏高（可能含特殊行情），已建議保守值 {suggested}%")
-
-            exp = st.number_input(
-                f"{name}（{tid}）— 近3年CAGR：{cagr_display}　預期年化報酬率（%）",
-                value=float(suggested), min_value=0.0, max_value=30.0, step=0.5,
-                key=f"cl_exp_{tid}",
-                help=f"近3年實際CAGR為 {cagr_display}，建議填入保守合理值（通常 5~12%）"
-            )
-            cagr_results.append((name, tid, pct, cagr_display, exp))
-            weighted_return += exp * pct / 100
+                st.warning(f"⚠️ {name}（{tid}）：{label}，請手動輸入報酬率")
+                manual = st.number_input(f"{name} 預期年化報酬率（%）", value=7.0, key=f"cl_manual_{tid}")
+                cagr = manual
+            cagr_results.append((name, tid, pct, cagr, label))
+            weighted_return += cagr * pct / 100
 
         df_cagr = pd.DataFrame({
             "標的": [x[0] for x in cagr_results],
             "代碼": [x[1] for x in cagr_results],
             "比例": [f"{x[2]}%" for x in cagr_results],
-            "近3年CAGR（參考）": [x[3] for x in cagr_results],
-            "預期年化報酬率": [f"{x[4]:.1f}%" for x in cagr_results],
+            "近3年CAGR": [f"{x[3]:.2f}%" for x in cagr_results],
+            "資料說明": [x[4] for x in cagr_results],
         })
         st.dataframe(df_cagr, use_container_width=True, hide_index=True)
-        st.info(f"**組合加權預期報酬率：{weighted_return:.2f}%**（依各標的預期值加權）")
+        st.info(f"**組合加權年化報酬率：{weighted_return:.2f}%**（各標的CAGR依比例加權）")
 
         # 套利計算
         r_monthly = loan_rate / 100 / 12
@@ -1587,41 +1575,28 @@ elif module == "🏠 房貸減壓分析":
             st.warning(f"⚠️ 比例合計 {total_hl_pct}%，請調整至 100%")
 
     if total_hl_pct == 100:
-        # 抓取各標的 CAGR，顯示參考，讓用戶設定合理預期報酬率
-        st.markdown('<p class="section-header">標的歷史報酬率（參考）與預期報酬率設定</p>', unsafe_allow_html=True)
-        st.caption("近3年CAGR僅供參考，請依自身判斷設定合理的預期年化報酬率（建議不超過12~15%）")
+        # 抓取各標的 CAGR
+        st.markdown('<p class="section-header">抓取標的歷史報酬率</p>', unsafe_allow_html=True)
         hl_cagr_results = []
         hl_weighted_return = 0
         for name, tid, ttype, pct in hl_targets:
             ctype = "基金" if ttype == "基金" else "股票"
             cagr, label = get_cagr(tid, ctype, years=3)
             if cagr is None:
-                suggested = 6.0
-                cagr_display = "無法取得"
-            else:
-                suggested = round(min(cagr, 12.0), 1)
-                cagr_display = f"{cagr:.2f}%"
-                if cagr > 15:
-                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 偏高，已建議保守值 {suggested}%")
-
-            exp = st.number_input(
-                f"{name}（{tid}）— 近3年CAGR：{cagr_display}　預期年化報酬率（%）",
-                value=float(suggested), min_value=0.0, max_value=30.0, step=0.5,
-                key=f"hl_exp_{tid}",
-                help=f"近3年實際CAGR為 {cagr_display}，建議填入保守合理值（通常 5~12%）"
-            )
-            hl_cagr_results.append((name, tid, pct, cagr_display, exp))
-            hl_weighted_return += exp * pct / 100
+                st.warning(f"⚠️ {name}（{tid}）：{label}，請手動輸入")
+                manual = st.number_input(f"{name} 預期年化報酬率（%）", value=6.0, key=f"hl_manual_{tid}")
+                cagr = manual
+            hl_cagr_results.append((name, tid, pct, cagr, label))
+            hl_weighted_return += cagr * pct / 100
 
         df_hl_cagr = pd.DataFrame({
             "標的": [x[0] for x in hl_cagr_results],
             "代碼": [x[1] for x in hl_cagr_results],
             "比例": [f"{x[2]}%" for x in hl_cagr_results],
-            "近3年CAGR（參考）": [x[3] for x in hl_cagr_results],
-            "預期年化報酬率": [f"{x[4]:.1f}%" for x in hl_cagr_results],
+            "近3年CAGR": [f"{x[3]:.2f}%" for x in hl_cagr_results],
         })
         st.dataframe(df_hl_cagr, use_container_width=True, hide_index=True)
-        st.info(f"**組合加權預期報酬率：{hl_weighted_return:.2f}%**（依各標的預期值加權）")
+        st.info(f"**組合加權年化報酬率：{hl_weighted_return:.2f}%**")
 
         # 月付計算
         r_a = new_rate_a / 100 / 12
