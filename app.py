@@ -1462,8 +1462,10 @@ elif module == "💳 信貸投資套利":
                 remaining_debt = loan_amount
             remaining_debt = max(remaining_debt, 0)
             inv_val = inv_amount * (1 + weighted_return/100) ** y
-            trend_data.append({"年份": f"第{y}年", "投資資產價值": inv_val, "信貸負債餘額": remaining_debt})
-        st.line_chart(pd.DataFrame(trend_data).set_index("年份"), color=["#4f46e5","#e84040"])
+            trend_data.append({"年份": y, "投資資產價值": inv_val, "信貸負債餘額": remaining_debt})
+        df_trend = pd.DataFrame(trend_data).set_index("年份")
+        df_trend.index.name = "年（第N年）"
+        st.line_chart(df_trend, color=["#4f46e5","#e84040"])
 
         df_credit = pd.DataFrame({
             "項目": ["貸款金額","信貸年利率","貸款年期","每月還款額",
@@ -1634,8 +1636,10 @@ elif module == "🏠 房貸減壓分析":
             else:
                 rem_a2 = new_loan_a * 10000
             rem_a2 = max(rem_a2, 0)
-            cf_data.append({"年份": f"第{y}年", "投資資產": inv_val, "房貸負債": rem_a2 + new_loan_b*10000})
-        st.line_chart(pd.DataFrame(cf_data).set_index("年份"), color=["#4f46e5","#e84040"])
+            cf_data.append({"年份": y, "投資資產": inv_val, "房貸負債": rem_a2 + new_loan_b*10000})
+        df_cf = pd.DataFrame(cf_data).set_index("年份")
+        df_cf.index.name = "年（第N年）"
+        st.line_chart(df_cf, color=["#4f46e5","#e84040"])
 
         df_house = pd.DataFrame({
             "項目": ["原房貸月付","新方案月付（本利攤）","理財型寬限月付",
