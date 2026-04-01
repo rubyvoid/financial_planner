@@ -1554,8 +1554,7 @@ elif module == "🏠 房貸減壓分析":
         with hd3: new_years_b = st.number_input("寬限年期", value=5, step=1, key="hl_b_yr")
     with col2:
         st.markdown("**3. 投資設定**")
-        inv_total_hl = st.number_input("投資總額（萬）", value=100, step=50, key="hl_inv",
-                                        help="轉增貸取得的資金投入市場")
+        st.caption("請在各標的欄位填入實際投入金額，系統自動加總")
         st.markdown("**投資標的（1～3個，比例合計需為100%）**")
         hl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="hl_num")
         defaults_hl_name = ["006208 富邦台50", "安聯收益成長", "統一奔騰基金"]
@@ -1570,6 +1569,7 @@ elif module == "🏠 房貸減壓分析":
             with h3: ttype = st.selectbox(f"類型{i+1}", ["ETF/股票","基金"], index=["ETF/股票","基金"].index(defaults_hl_type[i]), key=f"hl_tt{i}", label_visibility="collapsed")
             with h4: p = st.number_input(f"比例{i+1}%", value=defaults_hl_pct[i], min_value=0, max_value=100, key=f"hl_p{i}", label_visibility="collapsed")
             hl_targets.append((t, tid, ttype, p))
+        inv_total_hl = 0  # 佔位用，實際金額由各標的 inv_this 決定
 
         total_hl_pct = sum(x[3] for x in hl_targets)
         if total_hl_pct == 100:
@@ -1616,8 +1616,9 @@ elif module == "🏠 房貸減壓分析":
                 )
             with r3:
                 inv_this = st.number_input(
-                    "投入金額（萬）",
-                    value=round(inv_total_hl * pct / 100),
+                    "投入（萬）",
+                    value=int(100 * pct / 100) if pct > 0 else 0,
+                    min_value=0, step=50,
                     key=f"hl_inv_{tid}",
                     label_visibility="visible"
                 )
@@ -1749,7 +1750,7 @@ elif module == "🏠 房貸減壓分析":
 {"每月節省 $" + f"{abs(monthly_diff):,.0f}" if monthly_diff>=0 else "月付增加 $" + f"{abs(monthly_diff):,.0f}"}。
 
 二、投資配息補貼效果
-投資 {inv_total_hl} 萬，組合加權報酬率 {hl_weighted_return:.2f}%（依各標的近3年實際CAGR），
+投資 {inv_total_actual} 萬，組合加權報酬率 {hl_weighted_return:.2f}%（依各標的近3年實際CAGR），
 預估每月配息 ${inv_monthly_income:,.0f}，每月現金流淨改善 ${net_monthly_flow:,.0f} 元。
 
 三、長期展望
