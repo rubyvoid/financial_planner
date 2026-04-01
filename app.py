@@ -1548,10 +1548,13 @@ elif module == "🏠 房貸減壓分析":
         with hc2: new_rate_a  = st.number_input("利率（%）", value=2.1, step=0.1, key="hl_a_rate", format="%.1f")
         with hc3: new_years_a = st.number_input("年期", value=30, step=1, key="hl_a_yr")
         st.markdown("**理財型（寬限期）**")
-        hd1, hd2, hd3 = st.columns(3)
-        with hd1: new_loan_b  = st.number_input("金額（萬）", value=0, step=50, key="hl_b_amt")
-        with hd2: new_rate_b  = st.number_input("利率（%）", value=2.5, step=0.1, key="hl_b_rate", format="%.1f")
-        with hd3: new_years_b = st.number_input("寬限年期", value=5, step=1, key="hl_b_yr")
+        hd1, hd2, hd3, hd4 = st.columns(4)
+        with hd1: new_loan_b   = st.number_input("金額（萬）", value=0, step=50, key="hl_b_amt")
+        with hd2: new_rate_b   = st.number_input("利率（%）", value=2.5, step=0.1, key="hl_b_rate", format="%.1f")
+        with hd3: new_years_b  = st.number_input("寬限年期", value=5, step=1, min_value=1, key="hl_b_yr",
+                                                   help="只付利息的期間（年）")
+        with hd4: new_years_b_total = st.number_input("總年期", value=30, step=1, min_value=1, key="hl_b_total",
+                                                        help="含寬限期的總貸款年期（寬限期後剩餘年期才開始攤還本金）")
     with col2:
         st.markdown("**3. 投資設定**")
         st.caption("請在各標的欄位填入實際投入金額，系統自動加總")
@@ -1656,7 +1659,8 @@ elif module == "🏠 房貸減壓分析":
         # 理財型：寬限期只付利息，寬限期後本利攤還
         r_b = new_rate_b / 100 / 12
         monthly_b_interest = (new_loan_b*10000) * r_b if new_loan_b > 0 else 0
-        n_b_after = max((new_years_a - new_years_b) * 12, 0)
+        # 寬限期後剩餘月數 = 總年期 - 寬限年期
+        n_b_after = max((new_years_b_total - new_years_b) * 12, 0)
         monthly_b_full = (new_loan_b*10000)*r_b/(1-(1+r_b)**(-n_b_after)) if r_b>0 and n_b_after>0 and new_loan_b>0 else 0
 
         total_new_monthly_grace = monthly_a + monthly_b_interest   # 寬限期內
@@ -1710,10 +1714,12 @@ elif module == "🏠 房貸減壓分析":
                 grace_months = new_years_b * 12
                 if paid_m <= grace_months:
                     rem_b2 = new_loan_b * 10000
-                else:
+                elif n_b_after > 0 and r_b > 0:
                     extra_m = paid_m - grace_months
-                    rem_b2 = (new_loan_b*10000)*(1+r_b)**extra_m - monthly_b_full*((1+r_b)**extra_m-1)/r_b if r_b>0 else new_loan_b*10000
+                    rem_b2 = (new_loan_b*10000)*(1+r_b)**extra_m - monthly_b_full*((1+r_b)**extra_m-1)/r_b
                     rem_b2 = max(rem_b2, 0)
+                else:
+                    rem_b2 = 0
             else:
                 rem_b2 = 0
 
