@@ -1392,44 +1392,56 @@ elif module == "💳 信貸投資套利":
             st.warning(f"⚠️ 比例合計 {total_cl_pct}%，請調整至 100%")
 
     if total_cl_pct == 100:
-        # 抓取各標的 CAGR，顯示參考，讓用戶設定合理預期報酬率
-        st.markdown('<p class="section-header">標的歷史報酬率（參考）與預期報酬率設定</p>', unsafe_allow_html=True)
-        st.caption("近3年CAGR僅供參考，請依自身判斷設定合理的預期年化報酬率（建議不超過12~15%）")
+        # ── 各標的設定：區分配息型 vs 成長型 ──
+        st.markdown('<p class="section-header">標的報酬率設定</p>', unsafe_allow_html=True)
+        st.caption("配息型：有月配息現金流（如安聯收益成長）；成長型：只有資產增值（如0050 ETF）")
         cagr_results = []
-        weighted_return = 0
+        weighted_return  = 0   # 加權報酬率（計算資產終值）
+        monthly_dividend = 0   # 配息型每月配息總額
+
         for name, tid, ttype, pct in cl_targets:
             ctype = "基金" if ttype == "基金" else "股票"
             cagr, label = get_cagr(tid, ctype)
-            # 合理預期值：CAGR 若超過 15% 則建議上限 12%
             if cagr is None:
                 suggested = 7.0
                 cagr_display = "無法取得"
             else:
-                suggested = round(max(min(cagr, 12.0), 0.0), 1)  # 限制在 0~12%
+                suggested = round(max(min(cagr, 12.0), 0.0), 1)
                 cagr_display = f"{cagr:.2f}%"
                 if cagr > 15:
-                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 偏高（可能含特殊行情），已建議保守值 {suggested}%")
+                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 偏高，已建議保守值 {suggested}%")
                 elif cagr < 0:
-                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 為負值（近期表現不佳），建議手動輸入合理預期值")
+                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 為負值，建議手動輸入合理預期值")
 
-            exp = st.number_input(
-                f"{name}（{tid}）— 近3年CAGR：{cagr_display}　預期年化報酬率（%）",
-                value=float(suggested), min_value=0.0, max_value=30.0, step=0.5,
-                key=f"cl_exp_{tid}",
-                help=f"近3年實際CAGR為 {cagr_display}，建議填入保守合理值（通常 5~12%）"
-            )
-            cagr_results.append((name, tid, pct, cagr_display, exp))
+            c1, c2 = st.columns([4, 1])
+            with c1:
+                exp = st.number_input(
+                    f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
+                    value=float(suggested), min_value=0.0, max_value=30.0, step=0.5,
+                    key=f"cl_exp_{tid}"
+                )
+            with c2:
+                is_dividend = st.selectbox(
+                    "類型", ["配息型", "成長型"],
+                    index=0 if ttype == "基金" else 1,
+                    key=f"cl_div_{tid}",
+                    label_visibility="collapsed"
+                )
+            cagr_results.append((name, tid, pct, cagr_display, exp, is_dividend))
             weighted_return += exp * pct / 100
+            if is_dividend == "配息型":
+                monthly_dividend += (inv_amount * pct / 100) * (exp / 100 / 12)
 
         df_cagr = pd.DataFrame({
             "標的": [x[0] for x in cagr_results],
             "代碼": [x[1] for x in cagr_results],
             "比例": [f"{x[2]}%" for x in cagr_results],
-            "近3年CAGR（參考）": [x[3] for x in cagr_results],
-            "預期年化報酬率": [f"{x[4]:.1f}%" for x in cagr_results],
+            "近3年CAGR": [x[3] for x in cagr_results],
+            "預期報酬率": [f"{x[4]:.1f}%" for x in cagr_results],
+            "類型": [x[5] for x in cagr_results],
         })
         st.dataframe(df_cagr, use_container_width=True, hide_index=True)
-        st.info(f"**組合加權預期報酬率：{weighted_return:.2f}%**（依各標的預期值加權）")
+        st.info(f"組合加權報酬率：**{weighted_return:.2f}%**　｜　配息型月現金流：**${monthly_dividend:,.0f}**")
 
         # 套利計算
         r_monthly = loan_rate / 100 / 12
@@ -1566,11 +1578,14 @@ elif module == "🏠 房貸減壓分析":
             st.warning(f"⚠️ 比例合計 {total_hl_pct}%，請調整至 100%")
 
     if total_hl_pct == 100:
-        # 抓取各標的 CAGR，顯示參考，讓用戶設定合理預期報酬率
-        st.markdown('<p class="section-header">標的歷史報酬率（參考）與預期報酬率設定</p>', unsafe_allow_html=True)
-        st.caption("近3年CAGR僅供參考，請依自身判斷設定合理的預期年化報酬率（建議不超過12~15%）")
+        # ── 各標的設定：區分配息型 vs 成長型 ──
+        st.markdown('<p class="section-header">標的報酬率設定</p>', unsafe_allow_html=True)
+        st.caption("請分別設定各標的的年化報酬率與類型（配息型可產生每月現金流；成長型只有資產增值）")
+
         hl_cagr_results = []
-        hl_weighted_return = 0
+        hl_growth_return   = 0   # 成長型加權報酬率（用於資產終值）
+        hl_dividend_income = 0   # 配息型每月配息總額
+
         for name, tid, ttype, pct in hl_targets:
             ctype = "基金" if ttype == "基金" else "股票"
             cagr, label = get_cagr(tid, ctype)
@@ -1578,79 +1593,152 @@ elif module == "🏠 房貸減壓分析":
                 suggested = 6.0
                 cagr_display = "無法取得"
             else:
-                suggested = round(max(min(cagr, 12.0), 0.0), 1)  # 限制在 0~12%
+                suggested = round(max(min(cagr, 12.0), 0.0), 1)
                 cagr_display = f"{cagr:.2f}%"
                 if cagr > 15:
                     st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 偏高，已建議保守值 {suggested}%")
                 elif cagr < 0:
-                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 為負值（近期表現不佳），建議手動輸入合理預期值")
+                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 為負值，建議手動輸入合理預期值")
 
-            exp = st.number_input(
-                f"{name}（{tid}）— 近3年CAGR：{cagr_display}　預期年化報酬率（%）",
-                value=float(suggested), min_value=0.0, max_value=30.0, step=0.5,
-                key=f"hl_exp_{tid}",
-                help=f"近3年實際CAGR為 {cagr_display}，建議填入保守合理值（通常 5~12%）"
-            )
-            hl_cagr_results.append((name, tid, pct, cagr_display, exp))
-            hl_weighted_return += exp * pct / 100
+            r1, r2, r3 = st.columns([3, 1, 1])
+            with r1:
+                exp = st.number_input(
+                    f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
+                    value=float(suggested), min_value=0.0, max_value=30.0, step=0.5,
+                    key=f"hl_exp_{tid}"
+                )
+            with r2:
+                is_dividend = st.selectbox(
+                    "類型", ["配息型", "成長型"],
+                    index=0 if ttype == "基金" else 1,
+                    key=f"hl_div_{tid}",
+                    help="配息型：有月配息；成長型：無配息只有增值"
+                )
+            with r3:
+                inv_this = st.number_input(
+                    "投入金額（萬）",
+                    value=round(inv_total_hl * pct / 100),
+                    key=f"hl_inv_{tid}",
+                    label_visibility="visible"
+                )
+
+            hl_cagr_results.append((name, tid, pct, cagr_display, exp, is_dividend, inv_this))
+
+            # 成長型：貢獻到整體資產終值報酬率
+            hl_growth_return += exp * pct / 100
+
+            # 配息型：貢獻月配息
+            if is_dividend == "配息型":
+                hl_dividend_income += (inv_this * 10000) * (exp / 100 / 12)
+
+        # 整體資產終值用加權報酬率
+        hl_weighted_return = hl_growth_return
+        inv_total_actual = sum(x[6] for x in hl_cagr_results)  # 實際總投資（萬）
 
         df_hl_cagr = pd.DataFrame({
             "標的": [x[0] for x in hl_cagr_results],
             "代碼": [x[1] for x in hl_cagr_results],
             "比例": [f"{x[2]}%" for x in hl_cagr_results],
-            "近3年CAGR（參考）": [x[3] for x in hl_cagr_results],
-            "預期年化報酬率": [f"{x[4]:.1f}%" for x in hl_cagr_results],
+            "近3年CAGR": [x[3] for x in hl_cagr_results],
+            "預期報酬率": [f"{x[4]:.1f}%" for x in hl_cagr_results],
+            "類型": [x[5] for x in hl_cagr_results],
+            "投入（萬）": [x[6] for x in hl_cagr_results],
         })
         st.dataframe(df_hl_cagr, use_container_width=True, hide_index=True)
-        st.info(f"**組合加權預期報酬率：{hl_weighted_return:.2f}%**（依各標的預期值加權）")
+        st.info(f"配息型每月預估現金流：**${hl_dividend_income:,.0f}**　｜　投資組合加權報酬率：**{hl_weighted_return:.2f}%**")
 
-        # 月付計算
+        # ── 月付計算 ──
         r_a = new_rate_a / 100 / 12
         n_a = new_years_a * 12
         monthly_a = (new_loan_a*10000)*r_a/(1-(1+r_a)**(-n_a)) if r_a>0 and n_a>0 else 0
-        monthly_b = (new_loan_b*10000)*(new_rate_b/100/12) if new_loan_b>0 else 0
-        total_new_monthly = monthly_a + monthly_b
-        monthly_diff = orig_monthly - total_new_monthly
-        inv_monthly_income = (inv_total_hl*10000)*(hl_weighted_return/100/12)
-        net_monthly_flow = monthly_diff + inv_monthly_income
-        inv_final_10y = (inv_total_hl*10000)*(1+hl_weighted_return/100)**10
+
+        # 理財型：寬限期只付利息，寬限期後本利攤還
+        r_b = new_rate_b / 100 / 12
+        monthly_b_interest = (new_loan_b*10000) * r_b if new_loan_b > 0 else 0
+        n_b_after = max((new_years_a - new_years_b) * 12, 0)
+        monthly_b_full = (new_loan_b*10000)*r_b/(1-(1+r_b)**(-n_b_after)) if r_b>0 and n_b_after>0 and new_loan_b>0 else 0
+
+        total_new_monthly_grace = monthly_a + monthly_b_interest   # 寬限期內
+        total_new_monthly_after = monthly_a + monthly_b_full        # 寬限期後
+        monthly_diff_grace = orig_monthly - total_new_monthly_grace
+        monthly_diff_after = orig_monthly - total_new_monthly_after
+
+        # 現金流改善 = 月付節省 + 配息收入
+        net_flow_grace = monthly_diff_grace + hl_dividend_income
+        net_flow_after = monthly_diff_after + hl_dividend_income
+        inv_final_10y  = (inv_total_actual * 10000) * (1 + hl_weighted_return/100) ** 10
 
         st.markdown('<p class="section-header">房貸減壓試算結果</p>', unsafe_allow_html=True)
+
+        # 原房貸 vs 新方案比較
+        st.markdown("**月付款比較**")
+        cmp1, cmp2, cmp3 = st.columns(3)
+        cmp1.metric("原房貸月付", f"${orig_monthly:,}")
+        cmp2.metric("新方案（寬限期內）", f"${total_new_monthly_grace:,.0f}",
+                    delta=f"{'節省' if monthly_diff_grace>=0 else '增加'} ${abs(monthly_diff_grace):,.0f}")
+        cmp3.metric("新方案（寬限期後）", f"${total_new_monthly_after:,.0f}",
+                    delta=f"{'節省' if monthly_diff_after>=0 else '增加'} ${abs(monthly_diff_after):,.0f}")
+
+        st.markdown("**現金流改善（含配息）**")
         h1c, h2c, h3c, h4c = st.columns(4)
-        h1c.metric("新方案月付合計", f"${total_new_monthly:,.0f}",
-                   delta=f"{'節省' if monthly_diff>=0 else '增加'} ${abs(monthly_diff):,.0f}")
-        h2c.metric("投資預估月配息", f"${inv_monthly_income:,.0f}")
-        h3c.metric("每月現金流改善", f"${net_monthly_flow:,.0f}",
-                   delta="減壓成功" if net_monthly_flow>0 else "需重新評估")
+        h1c.metric("配息型月現金流", f"${hl_dividend_income:,.0f}",
+                   help="配息型標的每月預估配息收入")
+        h2c.metric("寬限期現金流改善", f"${net_flow_grace:,.0f}",
+                   delta="✓ 減壓" if net_flow_grace>0 else "⚠ 負擔增加")
+        h3c.metric("寬限期後現金流改善", f"${net_flow_after:,.0f}",
+                   delta="✓ 減壓" if net_flow_after>0 else "⚠ 負擔增加")
         h4c.metric("10年後投資終值", f"${inv_final_10y:,.0f}")
 
-        # ── 走勢圖：依使用者設定的預期報酬率與房貸條件 ──
-        st.markdown('<p class="section-header">資產 vs 房貸負債走勢（依設定條件）</p>', unsafe_allow_html=True)
-        st.caption("藍線：投資資產（依預期報酬率複利成長）；紅線：房貸負債餘額（依利率逐月遞減）")
+        # ── 走勢圖：30年（含寬限期切換）──
+        st.markdown('<p class="section-header">資產 vs 房貸負債走勢（30年）</p>', unsafe_allow_html=True)
+        st.caption("藍線：投資資產複利成長；紅線：房貸負債餘額（寬限期後本金開始下降）")
         cf_data = []
-        for y in range(11):
-            inv_val = (inv_total_hl * 10000) * (1 + hl_weighted_return/100) ** y
-            paid_m = y * 12
+        for y in range(31):
+            inv_val = (inv_total_actual * 10000) * (1 + hl_weighted_return/100) ** y
+            paid_m  = y * 12
+
+            # 本利攤還負債
             if r_a > 0 and paid_m > 0:
                 rem_a2 = (new_loan_a*10000)*(1+r_a)**paid_m - monthly_a*((1+r_a)**paid_m-1)/r_a
             else:
                 rem_a2 = new_loan_a * 10000
             rem_a2 = max(rem_a2, 0)
-            cf_data.append({"年份": y, "投資資產": inv_val, "房貸負債": rem_a2 + new_loan_b*10000})
-        df_cf = pd.DataFrame(cf_data).set_index("年份")
-        df_cf.index.name = "年（第N年）"
+
+            # 理財型：寬限期內本金不動，寬限期後開始攤還
+            if new_loan_b > 0:
+                grace_months = new_years_b * 12
+                if paid_m <= grace_months:
+                    rem_b2 = new_loan_b * 10000
+                else:
+                    extra_m = paid_m - grace_months
+                    rem_b2 = (new_loan_b*10000)*(1+r_b)**extra_m - monthly_b_full*((1+r_b)**extra_m-1)/r_b if r_b>0 else new_loan_b*10000
+                    rem_b2 = max(rem_b2, 0)
+            else:
+                rem_b2 = 0
+
+            cf_data.append({"年": y, "投資資產": inv_val, "房貸負債": rem_a2 + rem_b2})
+
+        df_cf = pd.DataFrame(cf_data).set_index("年")
         st.line_chart(df_cf, color=["#4f46e5","#e84040"])
 
+        # ── 明細表 ──
         df_house = pd.DataFrame({
-            "項目": ["原房貸月付","新方案月付（本利攤）","理財型寬限月付",
-                     "新方案月付合計","月付款差額","投資金額",
-                     "組合加權年化報酬率","預估月配息收入","每月現金流淨改善","10年後投資終值"],
-            "金額": [f"${orig_monthly:,}", f"${monthly_a:,.0f}", f"${monthly_b:,.0f}",
-                    f"${total_new_monthly:,.0f}",
-                    f"{'節省' if monthly_diff>=0 else '增加'} ${abs(monthly_diff):,.0f}",
-                    f"${inv_total_hl*10000:,}", f"{hl_weighted_return:.2f}%",
-                    f"${inv_monthly_income:,.0f}", f"${net_monthly_flow:,.0f}",
-                    f"${inv_final_10y:,.0f}"]
+            "項目": ["原房貸月付", "新方案月付（本利攤）",
+                     f"理財型月付（寬限期 {new_years_b} 年內）",
+                     f"理財型月付（寬限期後）",
+                     "寬限期現金流改善（含配息）", "寬限期後現金流改善（含配息）",
+                     "配息型月配息", "總投資金額", "10年後投資終值"],
+            "金額": [
+                f"${orig_monthly:,}",
+                f"${monthly_a:,.0f}",
+                f"${monthly_b_interest:,.0f}（只付利息）",
+                f"${monthly_b_full:,.0f}（本利攤還）",
+                f"${net_flow_grace:,.0f}",
+                f"${net_flow_after:,.0f}",
+                f"${hl_dividend_income:,.0f}",
+                f"${inv_total_actual*10000:,}",
+                f"${inv_final_10y:,.0f}"
+            ]
         })
         st.dataframe(df_house, use_container_width=True, hide_index=True)
 
