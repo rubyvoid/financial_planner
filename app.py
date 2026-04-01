@@ -462,53 +462,29 @@ def calculate_dca(df_nav, monthly):
 # ═══════════════════════════════════════════════════════
 # 共用：從淨值歷史計算年化報酬率（CAGR）
 # ═══════════════════════════════════════════════════════
-@st.cache_data(ttl=3600)
-def get_cagr(ticker, ticker_type, years=3):
-    """從歷史淨值計算 N 年 CAGR，基金用鉅亨，ETF/股票用 yfinance"""
+def get_cagr(ticker, ticker_type, dummy_name="標的"):
+    """
+    直接複用 get_fund_data / get_stock_data 取得完整歷史資料，
+    再從 df 計算累積報酬率，作為預設建議值參考。
+    回傳 (cagr_or_None, label_str)
+    """
     try:
         if ticker_type == "基金":
-            headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://fund.cnyes.com/"}
-            res = requests.get(
-                f"https://fund.api.cnyes.com/fund/api/v1/funds/{ticker}/nav?format=table&page=1",
-                headers=headers, timeout=10)
-            items = res.json().get('items', {}).get('data', [])
-            if not items:
-                return None, "查無資料"
-            df = pd.DataFrame(items)
-            date_col = next((c for c in ['tradeDate','date','navDate','datetime'] if c in df.columns), None)
-            nav_col  = next((c for c in ['nav','nav_price','price'] if c in df.columns), None)
-            if not date_col or not nav_col:
-                return None, "欄位錯誤"
-            raw = pd.to_numeric(df[date_col], errors='coerce')
-            if raw.dropna().iloc[0] > 1e9:
-                df['date'] = pd.to_datetime(raw, unit='s', errors='coerce')
-            else:
-                df['date'] = pd.to_datetime(df[date_col], errors='coerce')
-            df['nav'] = pd.to_numeric(df[nav_col], errors='coerce')
-            df = df.dropna(subset=['date','nav']).sort_values('date')
+            data = get_fund_data(ticker, dummy_name)
         else:
-            tid = f"{ticker}.TW" if ticker.isdigit() or len(ticker)==4 else ticker
-            hist = yf.Ticker(tid).history(period=f"{years+1}y")
-            if hist.empty:
-                return None, f"找不到 {tid}"
-            df = hist.reset_index()[['Date','Close']].rename(columns={'Date':'date','Close':'nav'})
-            df['date'] = df['date'].dt.tz_localize(None)
-            df = df.sort_values('date')
+            data = get_stock_data(ticker, dummy_name)
 
-        if len(df) < 2:
+        if data is None:
+            return None, "查無資料"
+
+        df = data["df"]
+        if len(df) < 10:
             return None, "資料不足"
 
-        end_val   = df['nav'].iloc[-1]
-        # 找最接近 N 年前的資料
-        target_date = df['date'].iloc[-1] - pd.DateOffset(years=years)
-        past_df = df[df['date'] <= target_date]
-        if past_df.empty:
-            # 資料不足 N 年，用全部資料估算
-            start_val = df['nav'].iloc[0]
-            actual_years = (df['date'].iloc[-1] - df['date'].iloc[0]).days / 365.25
-        else:
-            start_val = past_df['nav'].iloc[-1]
-            actual_years = years
+        df = df.sort_values("date")
+        start_val = df["nav"].iloc[0]
+        end_val   = df["nav"].iloc[-1]
+        actual_years = (df["date"].iloc[-1] - df["date"].iloc[0]).days / 365.25
 
         if start_val <= 0 or actual_years <= 0:
             return None, "計算錯誤"
@@ -1423,16 +1399,18 @@ elif module == "💳 信貸投資套利":
         weighted_return = 0
         for name, tid, ttype, pct in cl_targets:
             ctype = "基金" if ttype == "基金" else "股票"
-            cagr, label = get_cagr(tid, ctype, years=3)
+            cagr, label = get_cagr(tid, ctype)
             # 合理預期值：CAGR 若超過 15% 則建議上限 12%
             if cagr is None:
                 suggested = 7.0
                 cagr_display = "無法取得"
             else:
-                suggested = round(min(cagr, 12.0), 1)
+                suggested = round(max(min(cagr, 12.0), 0.0), 1)  # 限制在 0~12%
                 cagr_display = f"{cagr:.2f}%"
                 if cagr > 15:
                     st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 偏高（可能含特殊行情），已建議保守值 {suggested}%")
+                elif cagr < 0:
+                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 為負值（近期表現不佳），建議手動輸入合理預期值")
 
             exp = st.number_input(
                 f"{name}（{tid}）— 近3年CAGR：{cagr_display}　預期年化報酬率（%）",
@@ -1594,15 +1572,17 @@ elif module == "🏠 房貸減壓分析":
         hl_weighted_return = 0
         for name, tid, ttype, pct in hl_targets:
             ctype = "基金" if ttype == "基金" else "股票"
-            cagr, label = get_cagr(tid, ctype, years=3)
+            cagr, label = get_cagr(tid, ctype)
             if cagr is None:
                 suggested = 6.0
                 cagr_display = "無法取得"
             else:
-                suggested = round(min(cagr, 12.0), 1)
+                suggested = round(max(min(cagr, 12.0), 0.0), 1)  # 限制在 0~12%
                 cagr_display = f"{cagr:.2f}%"
                 if cagr > 15:
                     st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 偏高，已建議保守值 {suggested}%")
+                elif cagr < 0:
+                    st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 為負值（近期表現不佳），建議手動輸入合理預期值")
 
             exp = st.number_input(
                 f"{name}（{tid}）— 近3年CAGR：{cagr_display}　預期年化報酬率（%）",
