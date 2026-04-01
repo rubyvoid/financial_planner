@@ -1450,42 +1450,20 @@ elif module == "💳 信貸投資套利":
         k4.metric("扣除還款後淨利", f"${net_profit:,.0f}",
                   delta="獲利" if net_profit > 0 else "虧損")
 
-        # ── 走勢圖：歷史實際績效 + 負債還款走勢 ──
-        st.markdown('<p class="section-header">歷史實際績效 vs 信貸負債走勢</p>', unsafe_allow_html=True)
-        st.caption("藍線：依各標的歷史實際淨值正規化後，模擬若於最早日期投入投資金額的資產變化；紅線：信貸負債餘額")
-
-        # 收集所有標的的歷史 df，取交集日期範圍
-        hist_dfs = []
-        for name, tid, ttype, pct, exp in cagr_results:
-            ctype = "基金" if ttype == "基金" else "股票"
-            data = get_fund_data(tid, name) if ctype == "基金" else get_stock_data(tid, name)
-            if data is not None:
-                df_tmp = data["df"].copy()
-                df_tmp['date'] = pd.to_datetime(df_tmp['date']).dt.normalize()
-                df_tmp = df_tmp.groupby('date')['nav'].last()
-                df_tmp = (df_tmp / df_tmp.iloc[0]) * (inv_amount * pct / 100)
-                hist_dfs.append(df_tmp.rename(name))
-
-        if hist_dfs:
-            # 合併各標的，加總得組合資產走勢
-            df_portfolio = pd.concat(hist_dfs, axis=1).fillna(method='ffill').dropna()
-            df_portfolio['組合投資資產'] = df_portfolio.sum(axis=1)
-
-            # 計算對應日期的負債餘額
-            start_date = df_portfolio.index[0]
-            debt_series = {}
-            for dt in df_portfolio.index:
-                months_passed = max((dt - start_date).days / 30.44, 0)
-                if r_monthly > 0 and months_passed > 0:
-                    rem = loan_amount * (1+r_monthly)**months_passed - monthly_payment * ((1+r_monthly)**months_passed - 1) / r_monthly
-                else:
-                    rem = loan_amount
-                debt_series[dt] = max(rem, 0)
-
-            df_portfolio['信貸負債餘額'] = pd.Series(debt_series)
-            st.line_chart(df_portfolio[['組合投資資產','信貸負債餘額']], color=["#4f46e5","#e84040"])
-        else:
-            st.warning("無法取得歷史資料，無法繪製走勢圖")
+        # ── 走勢圖：依使用者設定的預期報酬率與貸款條件 ──
+        st.markdown('<p class="section-header">資產 vs 負債走勢（依設定條件）</p>', unsafe_allow_html=True)
+        st.caption("藍線：投資資產（依上方設定的預期報酬率複利成長）；紅線：信貸負債餘額（依利率逐月遞減）")
+        trend_data = []
+        for y in range(loan_years + 1):
+            paid_months = y * 12
+            if r_monthly > 0 and paid_months > 0:
+                remaining_debt = loan_amount * (1+r_monthly)**paid_months - monthly_payment * ((1+r_monthly)**paid_months-1) / r_monthly
+            else:
+                remaining_debt = loan_amount
+            remaining_debt = max(remaining_debt, 0)
+            inv_val = inv_amount * (1 + weighted_return/100) ** y
+            trend_data.append({"年份": f"第{y}年", "投資資產價值": inv_val, "信貸負債餘額": remaining_debt})
+        st.line_chart(pd.DataFrame(trend_data).set_index("年份"), color=["#4f46e5","#e84040"])
 
         df_credit = pd.DataFrame({
             "項目": ["貸款金額","信貸年利率","貸款年期","每月還款額",
@@ -1644,38 +1622,20 @@ elif module == "🏠 房貸減壓分析":
                    delta="減壓成功" if net_monthly_flow>0 else "需重新評估")
         h4c.metric("10年後投資終值", f"${inv_final_10y:,.0f}")
 
-        # ── 走勢圖：歷史實際績效 + 房貸負債走勢 ──
-        st.markdown('<p class="section-header">歷史實際績效 vs 房貸負債走勢</p>', unsafe_allow_html=True)
-        st.caption("藍線：依各標的歷史實際淨值模擬的投資資產走勢；紅線：房貸負債餘額")
-
-        hl_hist_dfs = []
-        for name, tid, ttype, pct, exp in hl_cagr_results:
-            ctype = "基金" if ttype == "基金" else "股票"
-            data = get_fund_data(tid, name) if ctype == "基金" else get_stock_data(tid, name)
-            if data is not None:
-                df_tmp = data["df"].copy()
-                df_tmp['date'] = pd.to_datetime(df_tmp['date']).dt.normalize()
-                df_tmp = df_tmp.groupby('date')['nav'].last()
-                df_tmp = (df_tmp / df_tmp.iloc[0]) * (inv_total_hl * 10000 * pct / 100)
-                hl_hist_dfs.append(df_tmp.rename(name))
-
-        if hl_hist_dfs:
-            df_hl_portfolio = pd.concat(hl_hist_dfs, axis=1).fillna(method='ffill').dropna()
-            df_hl_portfolio['組合投資資產'] = df_hl_portfolio.sum(axis=1)
-            start_date_hl = df_hl_portfolio.index[0]
-            hl_debt_series = {}
-            for dt in df_hl_portfolio.index:
-                months_passed = max((dt - start_date_hl).days / 30.44, 0)
-                if r_a > 0 and months_passed > 0:
-                    rem_a2 = (new_loan_a*10000)*(1+r_a)**months_passed - monthly_a*((1+r_a)**months_passed-1)/r_a
-                else:
-                    rem_a2 = new_loan_a * 10000
-                rem_a2 = max(rem_a2, 0)
-                hl_debt_series[dt] = rem_a2 + new_loan_b * 10000
-            df_hl_portfolio['房貸負債餘額'] = pd.Series(hl_debt_series)
-            st.line_chart(df_hl_portfolio[['組合投資資產','房貸負債餘額']], color=["#4f46e5","#e84040"])
-        else:
-            st.warning("無法取得歷史資料，無法繪製走勢圖")
+        # ── 走勢圖：依使用者設定的預期報酬率與房貸條件 ──
+        st.markdown('<p class="section-header">資產 vs 房貸負債走勢（依設定條件）</p>', unsafe_allow_html=True)
+        st.caption("藍線：投資資產（依預期報酬率複利成長）；紅線：房貸負債餘額（依利率逐月遞減）")
+        cf_data = []
+        for y in range(11):
+            inv_val = (inv_total_hl * 10000) * (1 + hl_weighted_return/100) ** y
+            paid_m = y * 12
+            if r_a > 0 and paid_m > 0:
+                rem_a2 = (new_loan_a*10000)*(1+r_a)**paid_m - monthly_a*((1+r_a)**paid_m-1)/r_a
+            else:
+                rem_a2 = new_loan_a * 10000
+            rem_a2 = max(rem_a2, 0)
+            cf_data.append({"年份": f"第{y}年", "投資資產": inv_val, "房貸負債": rem_a2 + new_loan_b*10000})
+        st.line_chart(pd.DataFrame(cf_data).set_index("年份"), color=["#4f46e5","#e84040"])
 
         df_house = pd.DataFrame({
             "項目": ["原房貸月付","新方案月付（本利攤）","理財型寬限月付",
