@@ -1443,28 +1443,45 @@ elif module == "💳 信貸投資套利":
         st.dataframe(df_cagr, use_container_width=True, hide_index=True)
         st.info(f"組合加權報酬率：**{weighted_return:.2f}%**　｜　配息型月現金流：**${monthly_dividend:,.0f}**")
 
-        # 套利計算
+        # ── 套利計算 ──
         r_monthly = loan_rate / 100 / 12
         n_months  = loan_years * 12
         monthly_payment = loan_amount * r_monthly / (1 - (1 + r_monthly) ** (-n_months))
         total_payment   = monthly_payment * n_months
         total_interest  = total_payment - loan_amount
-        final_inv_val   = inv_amount * (1 + weighted_return/100) ** loan_years
-        net_profit  = final_inv_val - total_payment
-        arb_spread  = weighted_return - loan_rate
+
+        # 投資終值：用加權報酬率
+        inv_total_cl = sum(x[2] * inv_amount / 100 for x in cagr_results)  # 實際投資金額
+        final_inv_val = inv_amount * (1 + weighted_return/100) ** loan_years
+        net_profit_total = final_inv_val - total_payment
+
+        # 現金流分析：配息型每月補貼還款
+        net_monthly_flow = monthly_dividend - monthly_payment
+        arb_spread = weighted_return - loan_rate
 
         st.markdown('<p class="section-header">套利試算結果</p>', unsafe_allow_html=True)
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("每月還款額", f"${monthly_payment:,.0f}")
-        k2.metric("利率差（套利空間）", f"{arb_spread:.1f}%",
-                  delta="正套利" if arb_spread > 0 else "負套利，不建議")
-        k3.metric(f"{loan_years}年後投資終值", f"${final_inv_val:,.0f}")
-        k4.metric("扣除還款後淨利", f"${net_profit:,.0f}",
-                  delta="獲利" if net_profit > 0 else "虧損")
 
-        # ── 走勢圖：依使用者設定的預期報酬率與貸款條件 ──
-        st.markdown('<p class="section-header">資產 vs 負債走勢（依設定條件）</p>', unsafe_allow_html=True)
-        st.caption("藍線：投資資產（依上方設定的預期報酬率複利成長）；紅線：信貸負債餘額（依利率逐月遞減）")
+        st.markdown("**月現金流分析**")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("每月還款額", f"${monthly_payment:,.0f}")
+        c2.metric("配息型月現金流", f"${monthly_dividend:,.0f}",
+                  help="配息型標的每月預估配息收入")
+        c3.metric("月現金流缺口", f"${net_monthly_flow:,.0f}",
+                  delta="配息可覆蓋還款" if net_monthly_flow >= 0 else f"每月需自補 ${abs(net_monthly_flow):,.0f}",
+                  delta_color="normal" if net_monthly_flow >= 0 else "inverse")
+
+        st.markdown("**到期套利分析**")
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("利率差（套利空間）", f"{arb_spread:.1f}%",
+                  delta="正套利" if arb_spread > 0 else "負套利，不建議")
+        k2.metric("總還款金額", f"${total_payment:,.0f}")
+        k3.metric(f"{loan_years}年後投資終值", f"${final_inv_val:,.0f}")
+        k4.metric("到期淨利潤", f"${net_profit_total:,.0f}",
+                  delta="獲利" if net_profit_total > 0 else "虧損")
+
+        # ── 走勢圖 ──
+        st.markdown('<p class="section-header">資產 vs 負債走勢</p>', unsafe_allow_html=True)
+        st.caption("藍線：投資資產複利成長；紅線：信貸負債餘額逐月遞減")
         trend_data = []
         for y in range(loan_years + 1):
             paid_months = y * 12
@@ -1480,30 +1497,41 @@ elif module == "💳 信貸投資套利":
         st.line_chart(df_trend, color=["#4f46e5","#e84040"])
 
         df_credit = pd.DataFrame({
-            "項目": ["貸款金額","信貸年利率","貸款年期","每月還款額",
-                     "總還款金額","總利息支出","組合加權報酬率",
-                     f"{loan_years}年後投資終值","套利淨利潤","建議"],
-            "數值": [f"${loan_amount:,}", f"{loan_rate}%", f"{loan_years}年",
-                    f"${monthly_payment:,.0f}", f"${total_payment:,.0f}",
-                    f"${total_interest:,.0f}", f"{weighted_return:.2f}%",
-                    f"${final_inv_val:,.0f}", f"${net_profit:,.0f}",
-                    "✅ 正套利，可考慮執行" if arb_spread > 2 else
-                    "⚠️ 利差偏小，需謹慎評估" if arb_spread > 0 else "❌ 負套利，不建議"]
+            "項目": ["貸款金額", "信貸年利率", "貸款年期",
+                     "每月還款額", "配息型月現金流", "月現金流缺口",
+                     "總還款金額", "總利息支出", "組合加權報酬率",
+                     f"{loan_years}年後投資終值", "到期淨利潤", "綜合建議"],
+            "數值": [
+                f"${loan_amount:,}", f"{loan_rate}%", f"{loan_years}年",
+                f"${monthly_payment:,.0f}",
+                f"${monthly_dividend:,.0f}",
+                f"{'覆蓋' if net_monthly_flow>=0 else '缺口'} ${abs(net_monthly_flow):,.0f}",
+                f"${total_payment:,.0f}", f"${total_interest:,.0f}",
+                f"{weighted_return:.2f}%",
+                f"${final_inv_val:,.0f}", f"${net_profit_total:,.0f}",
+                "✅ 正套利，現金流可覆蓋" if arb_spread > 2 and net_monthly_flow >= 0 else
+                "✅ 正套利，但需每月自補現金流" if arb_spread > 2 and net_monthly_flow < 0 else
+                "⚠️ 利差偏小，需謹慎評估" if arb_spread > 0 else "❌ 負套利，不建議"
+            ]
         })
         st.dataframe(df_credit, use_container_width=True, hide_index=True)
 
         advice_credit = f"""【信貸投資套利分析報告】
 
 一、套利空間評估
-信貸利率 {loan_rate}%，組合加權年化報酬率 {weighted_return:.2f}%（依各標的近3年實際CAGR加權），
+信貸利率 {loan_rate}%，組合加權年化報酬率 {weighted_return:.2f}%，
 利差為 {arb_spread:.1f}%。{"具備正套利空間。" if arb_spread > 0 else "目前不具備套利空間，不建議執行。"}
 
-二、現金流壓力分析
-每月需還款 ${monthly_payment:,.0f}，{loan_years}年共還款 ${total_payment:,.0f}，其中利息 ${total_interest:,.0f}。
-建議此金額不超過月收入的 30%。
+二、月現金流分析
+每月需還款 ${monthly_payment:,.0f}，配息型標的每月預估配息 ${monthly_dividend:,.0f}。
+{"配息可完全覆蓋還款，每月尚餘 $" + f"{net_monthly_flow:,.0f}。" if net_monthly_flow >= 0 else "配息不足以覆蓋還款，每月需自行補貼 $" + f"{abs(net_monthly_flow):,.0f}，需確認收入是否足夠。"}
 
-三、風險提醒
-• 上述CAGR為過去績效，不代表未來報酬
+三、到期損益
+{loan_years}年後投資終值預估 ${final_inv_val:,.0f}，扣除全部還款 ${total_payment:,.0f} 後，
+淨利潤為 ${net_profit_total:,.0f}。
+
+四、風險提醒
+• CAGR為過去績效，不代表未來報酬
 • 信貸到期仍需還款，無論投資盈虧
 • 建議選擇波動較低的標的降低風險
 • 緊急預備金需維持 6 個月生活費不可動用
