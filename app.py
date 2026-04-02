@@ -386,12 +386,27 @@ def build_pdf(client_name, sections: list[dict]) -> bytes:
 @st.cache_data(ttl=3600)
 def get_fund_data(fund_id, name):
     headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://fund.cnyes.com/"}
+    all_items = []
     try:
-        res = requests.get(f"https://fund.api.cnyes.com/fund/api/v1/funds/{fund_id}/nav?format=table&page=1",
-                           headers=headers, timeout=10)
-        nav_items = res.json().get('items', {}).get('data', [])
-        if not nav_items: return None
-        df_nav = pd.DataFrame(nav_items)
+        # 抓最多 5 頁，約 3~5 年資料，避免只有一頁導致 CAGR 失真
+        for page in range(1, 6):
+            try:
+                res = requests.get(
+                    f"https://fund.api.cnyes.com/fund/api/v1/funds/{fund_id}/nav?format=table&page={page}",
+                    headers=headers, timeout=10)
+                if res.status_code == 429:
+                    time.sleep(2)
+                    break
+                items = res.json().get('items', {}).get('data', [])
+                if not items:
+                    break
+                all_items.extend(items)
+                time.sleep(0.3)  # 防止觸發 API 限流
+            except Exception:
+                break
+        if not all_items:
+            return None
+        df_nav = pd.DataFrame(all_items)
         date_col = next((c for c in ['tradeDate','date','navDate','datetime'] if c in df_nav.columns), None)
         nav_col  = next((c for c in ['nav','nav_price','price'] if c in df_nav.columns), None)
         if not date_col or not nav_col: return None
@@ -402,6 +417,7 @@ def get_fund_data(fund_id, name):
         else:
             df_nav['date'] = pd.to_datetime(df_nav[date_col], errors='coerce')
         df_nav['nav']  = pd.to_numeric(df_nav[nav_col], errors='coerce')
+        df_nav = df_nav.drop_duplicates(subset=['date'])
         df_nav = df_nav.sort_values('date').dropna(subset=['nav'])
     except Exception as e:
         st.error(f"❌ {name} 資料抓取失敗: {e}"); return None
