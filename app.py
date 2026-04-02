@@ -1959,20 +1959,23 @@ elif module == "🏠 房貸減壓分析":
         advice_house = f"""【房貸減壓套利分析報告】
 
 一、策略概述
-原房貸月付 ${orig_monthly:,} 元。新方案月付 ${total_new_monthly:,.0f} 元，
-{"每月節省 $" + f"{abs(monthly_diff):,.0f}" if monthly_diff>=0 else "月付增加 $" + f"{abs(monthly_diff):,.0f}"}。
+原房貸月付 ${orig_monthly:,} 元。
+新方案寬限期內月付 ${total_new_monthly_grace:,.0f} 元（{"節省 $" + f"{abs(monthly_diff_grace):,.0f}" if monthly_diff_grace >= 0 else "增加 $" + f"{abs(monthly_diff_grace):,.0f}"}），
+寬限期後月付 ${total_new_monthly_after:,.0f} 元（{"節省 $" + f"{abs(monthly_diff_after):,.0f}" if monthly_diff_after >= 0 else "增加 $" + f"{abs(monthly_diff_after):,.0f}"}）。
 
 二、投資配息補貼效果
-投資 {inv_total_actual} 萬，組合加權報酬率 {hl_weighted_return:.2f}%（依各標的近3年實際CAGR），
-預估每月配息 ${inv_monthly_income:,.0f}，每月現金流淨改善 ${net_monthly_flow:,.0f} 元。
+投資 {inv_total_actual} 萬，組合加權報酬率 {hl_weighted_return:.2f}%。
+配息型標的每月預估配息 ${hl_dividend_income:,.0f} 元。
+寬限期內每月現金流改善 ${net_flow_grace:,.0f} 元，寬限期後每月現金流改善 ${net_flow_after:,.0f} 元。
 
 三、長期展望
 10年後投資終值預估 ${inv_final_10y:,.0f} 元。
 
 四、風險提醒
 • CAGR為過去績效，不代表未來表現
-• 理財型寬限期結束後月付將大幅增加，需提前規劃
+• 理財型寬限期（{new_years_b}年）結束後月付將大幅增加，需提前規劃
 • 轉增貸會增加房屋抵押風險
+• 緊急預備金需維持 6 個月生活費不可動用
 
 五、免責聲明
 本試算依過去數據估算，實際結果以市場表現為準。"""
