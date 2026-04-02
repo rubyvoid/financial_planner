@@ -323,16 +323,23 @@ def build_pdf(client_name, sections: list[dict]) -> bytes:
         topMargin=20*mm, bottomMargin=20*mm
     )
 
-    # 嘗試載入中文字型（若有），否則用內建
-    try:
-        font_path = "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"
-        if os.path.exists(font_path):
-            pdfmetrics.registerFont(TTFont('NotoSans', font_path))
-            base_font = 'NotoSans'
-        else:
-            base_font = 'Helvetica'
-    except:
-        base_font = 'Helvetica'
+    # 嘗試載入中文字型，依序找多個可能路徑
+    base_font = 'Helvetica'
+    font_candidates = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc",
+        "/System/Library/Fonts/PingFang.ttc",           # macOS
+        "C:/Windows/Fonts/msjh.ttc",                    # Windows 微軟正黑體
+    ]
+    for font_path in font_candidates:
+        try:
+            if os.path.exists(font_path):
+                pdfmetrics.registerFont(TTFont('NotoSans', font_path))
+                base_font = 'NotoSans'
+                break
+        except Exception:
+            continue
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('Title', fontName=base_font, fontSize=20,
