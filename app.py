@@ -1368,8 +1368,7 @@ elif module == "💳 信貸投資套利":
         loan_years  = st.number_input("貸款年期（年）", value=7, min_value=1, max_value=10, key="cl_yr")
     with col2:
         st.markdown("**投資設定**")
-        inv_amount  = st.number_input("實際投資金額（元）", value=1000000, step=50000, key="cl_inv",
-                                       help="通常等於貸款金額")
+        st.caption("請在各標的欄位填入實際投入金額（元），系統自動加總")
         st.markdown("**投資標的配置（1～3個，比例合計需為100%）**")
         cl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="cl_num")
         defaults_cl_name = ["006208 富邦台50", "安聯收益成長", "統一奔騰基金"]
@@ -1377,15 +1376,18 @@ elif module == "💳 信貸投資套利":
         defaults_cl_id   = ["006208", "B2abw8B", "B090460"]
         defaults_cl_pct  = [50, 50, 0] if cl_num == 2 else ([100, 0, 0] if cl_num == 1 else [40, 30, 30])
         cl_targets = []
+        defaults_cl_inv = [600000, 600000, 0]
         for i in range(cl_num):
-            c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+            c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
             with c1: t = st.text_input(f"標的{i+1}名稱", value=defaults_cl_name[i], key=f"cl_t{i}")
             with c2: tid = st.text_input(f"代碼{i+1}", value=defaults_cl_id[i], key=f"cl_tid{i}")
             with c3: ttype = st.selectbox(f"類型{i+1}", ["ETF/股票","基金"], index=["ETF/股票","基金"].index(defaults_cl_type[i]), key=f"cl_tt{i}", label_visibility="collapsed")
             with c4: p = st.number_input(f"比例{i+1}%", value=defaults_cl_pct[i], min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
-            cl_targets.append((t, tid, ttype, p))
+            with c5: inv_i = st.number_input(f"投入（元）", value=defaults_cl_inv[i] if i < len(defaults_cl_inv) else 0, min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
+            cl_targets.append((t, tid, ttype, p, inv_i))
 
         total_cl_pct = sum(x[3] for x in cl_targets)
+        inv_amount   = sum(x[4] for x in cl_targets)  # 總投資金額（各標的加總）
         if total_cl_pct == 100:
             st.success(f"✅ 比例合計 {total_cl_pct}%")
         else:
@@ -1399,7 +1401,7 @@ elif module == "💳 信貸投資套利":
         weighted_return  = 0   # 加權報酬率（計算資產終值）
         monthly_dividend = 0   # 配息型每月配息總額
 
-        for name, tid, ttype, pct in cl_targets:
+        for name, tid, ttype, pct, inv_this_cl in cl_targets:
             ctype = "基金" if ttype == "基金" else "股票"
             cagr, label = get_cagr(tid, ctype)
             if cagr is None:
@@ -1427,21 +1429,22 @@ elif module == "💳 信貸投資套利":
                     key=f"cl_div_{tid}",
                     label_visibility="collapsed"
                 )
-            cagr_results.append((name, tid, pct, cagr_display, exp, is_dividend))
+            cagr_results.append((name, tid, pct, cagr_display, exp, is_dividend, inv_this_cl))
             weighted_return += exp * pct / 100
             if is_dividend == "配息型":
-                monthly_dividend += (inv_amount * pct / 100) * (exp / 100 / 12)
+                monthly_dividend += inv_this_cl * (exp / 100 / 12)
 
         df_cagr = pd.DataFrame({
             "標的": [x[0] for x in cagr_results],
             "代碼": [x[1] for x in cagr_results],
             "比例": [f"{x[2]}%" for x in cagr_results],
+            "投入金額": [f"${x[6]:,.0f}" for x in cagr_results],
             "近3年CAGR": [x[3] for x in cagr_results],
             "預期報酬率": [f"{x[4]:.1f}%" for x in cagr_results],
             "類型": [x[5] for x in cagr_results],
         })
         st.dataframe(df_cagr, use_container_width=True, hide_index=True)
-        st.info(f"組合加權報酬率：**{weighted_return:.2f}%**　｜　配息型月現金流：**${monthly_dividend:,.0f}**")
+        st.info(f"組合加權報酬率：**{weighted_return:.2f}%**　｜　配息型月現金流：**${monthly_dividend:,.0f}**（配息型投入金額×報酬率÷12）")
 
         # ── 套利計算 ──
         r_monthly = loan_rate / 100 / 12
