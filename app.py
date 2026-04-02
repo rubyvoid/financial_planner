@@ -12,6 +12,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, PageBreak
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 import os
 
 # ─────────────────────────────────────────────
@@ -323,23 +324,31 @@ def build_pdf(client_name, sections: list[dict]) -> bytes:
         topMargin=20*mm, bottomMargin=20*mm
     )
 
-    # 嘗試載入中文字型，依序找多個可能路徑
+    # 中文字型載入（多路徑備援，適配本地與 Streamlit Cloud）
     base_font = 'Helvetica'
-    font_candidates = [
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc",
-        "/System/Library/Fonts/PingFang.ttc",           # macOS
-        "C:/Windows/Fonts/msjh.ttc",                    # Windows 微軟正黑體
+    wqy_candidates = [
+        '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+        '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+        '/usr/share/fonts/truetype/wqy-zenhei/wqy-zenhei.ttc',
+        '/usr/share/fonts/truetype/wqy-microhei/wqy-microhei.ttc',
     ]
-    for font_path in font_candidates:
-        try:
-            if os.path.exists(font_path):
-                pdfmetrics.registerFont(TTFont('NotoSans', font_path))
-                base_font = 'NotoSans'
+    for wqy_path in wqy_candidates:
+        if os.path.exists(wqy_path):
+            try:
+                pdfmetrics.registerFont(TTFont('ChineseFont', wqy_path, subfontIndex=0))
+                base_font = 'ChineseFont'
                 break
-        except Exception:
-            continue
+            except Exception:
+                continue
+    # 備援：reportlab 內建 CID 字型（MSung=繁中，STSong=簡中）
+    if base_font == 'Helvetica':
+        for cid in ['MSung-Light', 'STSong-Light']:
+            try:
+                pdfmetrics.registerFont(UnicodeCIDFont(cid))
+                base_font = cid
+                break
+            except Exception:
+                continue
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('Title', fontName=base_font, fontSize=20,
@@ -535,7 +544,13 @@ with st.sidebar:
         "🏠 房貸減壓分析",
     ])
     st.markdown("---")
-    client_name = st.text_input("客戶姓名", "王小明")
+    # 保存客戶姓名到 session_state，切換模組不會清除
+    if 'client_name' not in st.session_state:
+        st.session_state['client_name'] = '王小明'
+    client_name = st.text_input("客戶姓名",
+        value=st.session_state['client_name'],
+        key='client_name_input')
+    st.session_state['client_name'] = client_name
     st.caption(f"製表日期：{time.strftime('%Y/%m/%d')}")
 
     # ── 免責聲明 ──
