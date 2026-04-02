@@ -1589,45 +1589,91 @@ elif module == "💳 信貸投資套利":
         # ── 推薦標的建議 ──
         st.markdown("**換標的建議（依目標調整）**")
 
-        # 建議標的資料庫
+        # 建議標的資料庫（含熱門ETF + 基金）
         suggested_targets = [
+            # ── 成長型 ETF ──
             {"name": "元大台灣50 (0050)", "code": "0050", "type": "成長型",
-             "est_return": 14.0, "risk": "中", "特色": "台股大盤，長期成長穩定"},
+             "est_return": 15.0, "risk": "中", "category": "市值型",
+             "特色": "台股市值最大50檔，2025年漲幅達26%，長期穩健首選"},
             {"name": "富邦台50 (006208)", "code": "006208", "type": "成長型",
-             "est_return": 14.0, "risk": "中", "特色": "0050同類型，費用率更低"},
+             "est_return": 15.0, "risk": "中", "category": "市值型",
+             "特色": "0050同類型，管理費更低，適合長期存股"},
+            {"name": "國泰台灣科技龍頭 (00881)", "code": "00881", "type": "成長型",
+             "est_return": 16.0, "risk": "中高", "category": "科技型",
+             "特色": "台灣科技龍頭，受惠AI浪潮，2025定期定額戶數大增"},
+            {"name": "統一FANG+ (00757)", "code": "00757", "type": "成長型",
+             "est_return": 18.0, "risk": "高", "category": "科技型",
+             "特色": "美國10大科技巨頭，AI概念強，高波動高報酬"},
+            {"name": "元大S&P500 (00646)", "code": "00646", "type": "成長型",
+             "est_return": 14.0, "risk": "中", "category": "美股型",
+             "特色": "追蹤美國S&P500大盤，分散風險，長期穩健"},
+            # ── 配息型 ETF（高息） ──
             {"name": "國泰永續高股息 (00878)", "code": "00878", "type": "配息型",
-             "est_return": 10.0, "risk": "中低", "特色": "ESG篩選，穩定配息"},
-            {"name": "元大高股息 (0056)", "code": "0056", "type": "配息型",
-             "est_return": 9.5, "risk": "中低", "特色": "高股息策略，月月配"},
+             "est_return": 10.0, "risk": "中低", "category": "高息型",
+             "特色": "受益人數最多ETF，ESG篩選，季配息穩定"},
             {"name": "群益台灣精選高息 (00919)", "code": "00919", "type": "配息型",
-             "est_return": 11.0, "risk": "中", "特色": "精選高息股，月配息"},
+             "est_return": 11.0, "risk": "中", "category": "高息型",
+             "特色": "近四季殖利率破10%，2025受益人數排名第二"},
+            {"name": "元大高股息 (0056)", "code": "0056", "type": "配息型",
+             "est_return": 9.5, "risk": "中低", "category": "高息型",
+             "特色": "台灣第一檔高股息ETF，流動性佳，季配息"},
+            {"name": "元大台灣高息低波 (00713)", "code": "00713", "type": "配息型",
+             "est_return": 9.0, "risk": "低", "category": "高息型",
+             "特色": "高股息+低波動雙策略，適合保守投資人"},
+            {"name": "復華台灣科技優息 (00929)", "code": "00929", "type": "配息型",
+             "est_return": 10.5, "risk": "中", "category": "科技息型",
+             "特色": "科技股高息組合，月配息，兼顧成長與現金流"},
+            {"name": "中信成長高股息 (00934)", "code": "00934", "type": "配息型",
+             "est_return": 11.5, "risk": "中", "category": "高息型",
+             "特色": "2025年含息報酬率冠軍（+17%），成長與高息兼備"},
+            {"name": "大華優利高填息30 (00918)", "code": "00918", "type": "配息型",
+             "est_return": 10.0, "risk": "中", "category": "高息型",
+             "特色": "年化殖利率近10%，2025含息報酬前五名"},
+            # ── 配息型基金 ──
+            {"name": "安聯台灣科技基金 (A36004)", "code": "A36004", "type": "成長型",
+             "est_return": 20.0, "risk": "高", "category": "科技基金",
+             "特色": "主動式台灣科技基金，長期績效優異，適合積極型"},
             {"name": "安聯收益成長 (B2abw8B)", "code": "B2abw8B", "type": "配息型",
-             "est_return": 8.0, "risk": "中高", "特色": "多元資產，月配息穩定"},
+             "est_return": 8.0, "risk": "中高", "category": "多元資產基金",
+             "特色": "多元資產配置，月配息穩定，適合保守配息需求"},
             {"name": "統一奔騰基金 (B090460)", "code": "B090460", "type": "成長型",
-             "est_return": 12.0, "risk": "中高", "特色": "台股主動選股，長期績效佳"},
+             "est_return": 12.0, "risk": "中高", "category": "台股基金",
+             "特色": "主動式台股基金，長期績效佳，適合中長期成長"},
         ]
 
-        # 根據當前狀況給出不同建議策略
+        # ── 智慧換標的建議：分析客戶現有配置的弱點 ──
+        # 找出比例最高的標的
+        max_pct_target = max(cagr_results, key=lambda x: x[2])
+        # 找出報酬率最低的標的
+        min_return_target = min(cagr_results, key=lambda x: x[4])
+        # 找出投入金額最高的標的（比例×投資金額）
+        max_inv_target = max(cagr_results, key=lambda x: x[2])
+
         st.markdown(f"""
 <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);
 padding:14px 18px;margin:10px 0;font-size:13px;line-height:1.8;">
-<b>三種調整策略：</b><br>
-{"🔴 策略A（優先）：換入高報酬成長型，拼7年後終值獲利，犧牲月配息" if weighted_return < breakeven_rate else "🟢 策略A：維持現有配置，已可獲利"}
-<br>
-🟡 策略B：部分換入更高配息率標的，提升月現金流，降低每月自補壓力<br>
-🔵 策略C：縮短貸款年期或降低貸款金額，減少總利息支出
+<b>智慧調整建議（依客戶現有配置分析）：</b><br><br>
+{"⚠️ 目前配置報酬率低於損益平衡點，建議積極調整！" if weighted_return < breakeven_rate else "✅ 目前配置已可獲利，以下建議可進一步優化："}
+<br><br>
+🎯 <b>建議換標的 1：</b>「{max_pct_target[0]}」佔比最高（{max_pct_target[2]}%），
+若此標的報酬率偏低，影響整體最大，優先考慮換成更高報酬的標的。<br>
+🎯 <b>建議換標的 2：</b>「{min_return_target[0]}」預期報酬率最低（{min_return_target[4]:.1f}%），
+是拖低整體報酬率的主因，可優先換成更高配息或成長型標的。<br>
+💡 <b>策略A（拼終值）：</b>換入成長型如 0050/00881，提高組合報酬率突破損益平衡點<br>
+💡 <b>策略B（提現金流）：</b>換入更高配息如 00919/00934，提升月配息補貼還款<br>
+💡 <b>策略C（降成本）：</b>縮短貸款年期或降低貸款金額，減少總利息支出
 </div>
 """, unsafe_allow_html=True)
 
         # 顯示建議標的表格
         df_suggest = pd.DataFrame([{
             "標的名稱": t["name"],
-            "代碼": t["code"],
+            "類別": t["category"],
             "類型": t["type"],
             "預期年化報酬率": f"{t['est_return']}%",
-            "風險等級": t["risk"],
+            "風險": t["risk"],
             "特色": t["特色"],
-            "是否達損益平衡": "✅ 可獲利" if t["est_return"] >= breakeven_rate else f"❌ 仍不足（差 {breakeven_rate - t['est_return']:.1f}%）"
+            "損益平衡": "✅ 可獲利" if t["est_return"] >= breakeven_rate else f"❌ 差 {breakeven_rate - t['est_return']:.1f}%"
         } for t in suggested_targets])
 
         st.dataframe(df_suggest, use_container_width=True, hide_index=True)
