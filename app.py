@@ -1399,28 +1399,29 @@ elif module == "💳 信貸投資套利":
         st.caption("請在各標的欄位填入實際投入金額（元），系統自動加總")
         st.markdown("**投資標的配置（1～3個，比例合計需為100%）**")
         cl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="cl_num")
-        _cl_name_init = ["006208 富邦台50", "安聯收益成長", "統一奔騰基金"]
-        _cl_type_init = ["ETF/股票", "基金", "基金"]
-        _cl_id_init   = ["006208", "B2abw8B", "B090460"]
-        _cl_pct_init  = [50, 50, 0] if cl_num == 2 else ([100, 0, 0] if cl_num == 1 else [40, 30, 30])
-        # 從 session_state 讀取，若無則用預設值（切換模組後保留輸入）
-        defaults_cl_name = [st.session_state.get(f"cl_t{i}", _cl_name_init[i]) for i in range(3)]
-        defaults_cl_type = [st.session_state.get(f"cl_tt{i}", _cl_type_init[i]) for i in range(3)]
-        defaults_cl_id   = [st.session_state.get(f"cl_tid{i}", _cl_id_init[i]) for i in range(3)]
-        defaults_cl_pct  = [st.session_state.get(f"cl_p{i}", _cl_pct_init[i]) for i in range(3)]
+        # session_state 初始化：只在第一次設預設值，之後切換模組不重置
+        _cl_def_name = ["006208 富邦台50", "安聯收益成長", "統一奔騰基金"]
+        _cl_def_type = ["ETF/股票", "基金", "基金"]
+        _cl_def_id   = ["006208", "B2abw8B", "B090460"]
+        _cl_def_pct  = [50, 50, 0]
+        _cl_def_inv  = [600000, 600000, 0]
+        for i in range(3):
+            if f"cl_t{i}"   not in st.session_state: st.session_state[f"cl_t{i}"]   = _cl_def_name[i]
+            if f"cl_tid{i}" not in st.session_state: st.session_state[f"cl_tid{i}"] = _cl_def_id[i]
+            if f"cl_tt{i}"  not in st.session_state: st.session_state[f"cl_tt{i}"]  = _cl_def_type[i]
+            if f"cl_p{i}"   not in st.session_state: st.session_state[f"cl_p{i}"]   = _cl_def_pct[i]
+            if f"cl_inv{i}" not in st.session_state: st.session_state[f"cl_inv{i}"] = _cl_def_inv[i]
         cl_targets = []
-        defaults_cl_inv = [600000, 600000, 0]
         for i in range(cl_num):
             c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
-            with c1: t = st.text_input(f"標的{i+1}名稱", value=defaults_cl_name[i], key=f"cl_t{i}")
-            with c2: tid = st.text_input(f"代碼{i+1}", value=defaults_cl_id[i], key=f"cl_tid{i}")
+            with c1: t = st.text_input(f"標的{i+1}名稱", key=f"cl_t{i}")
+            with c2: tid = st.text_input(f"代碼{i+1}", key=f"cl_tid{i}")
             with c3:
-                _cl_type_opts = ["ETF/股票","基金"]
-                _cl_type_saved = st.session_state.get(f"cl_tt{i}", defaults_cl_type[i])
-                _cl_type_idx = _cl_type_opts.index(_cl_type_saved) if _cl_type_saved in _cl_type_opts else 0
-                ttype = st.selectbox(f"類型{i+1}", _cl_type_opts, index=_cl_type_idx, key=f"cl_tt{i}", label_visibility="collapsed")
-            with c4: p = st.number_input(f"比例{i+1}%", value=defaults_cl_pct[i], min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
-            with c5: inv_i = st.number_input(f"投入（元）", value=defaults_cl_inv[i] if i < len(defaults_cl_inv) else 0, min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
+                _cl_opts = ["ETF/股票","基金"]
+                _cl_tidx = _cl_opts.index(st.session_state[f"cl_tt{i}"]) if st.session_state.get(f"cl_tt{i}") in _cl_opts else 0
+                ttype = st.selectbox(f"類型{i+1}", _cl_opts, index=_cl_tidx, key=f"cl_tt{i}", label_visibility="collapsed")
+            with c4: p = st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
+            with c5: inv_i = st.number_input(f"投入（元）", min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
             cl_targets.append((t, tid, ttype, p, inv_i))
 
         total_cl_pct = sum(x[3] for x in cl_targets)
@@ -1804,26 +1805,26 @@ elif module == "🏠 房貸減壓分析":
         st.caption("請在各標的欄位填入實際投入金額，系統自動加總")
         st.markdown("**投資標的（1～3個，比例合計需為100%）**")
         hl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="hl_num")
-        _hl_name_init = ["006208 富邦台50", "安聯收益成長", "統一奔騰基金"]
-        _hl_type_init = ["ETF/股票", "基金", "基金"]
-        _hl_id_init   = ["006208", "B2abw8B", "B090460"]
-        _hl_pct_init  = [50, 50, 0] if hl_num == 2 else ([100, 0, 0] if hl_num == 1 else [40, 30, 30])
-        # 從 session_state 讀取，若無則用預設值（切換模組後保留輸入）
-        defaults_hl_name = [st.session_state.get(f"hl_t{i}", _hl_name_init[i]) for i in range(3)]
-        defaults_hl_type = [st.session_state.get(f"hl_tt{i}", _hl_type_init[i]) for i in range(3)]
-        defaults_hl_id   = [st.session_state.get(f"hl_tid{i}", _hl_id_init[i]) for i in range(3)]
-        defaults_hl_pct  = [st.session_state.get(f"hl_p{i}", _hl_pct_init[i]) for i in range(3)]
+        # session_state 初始化：只在第一次設預設值，之後切換模組不重置
+        _hl_def_name = ["006208 富邦台50", "安聯收益成長", "統一奔騰基金"]
+        _hl_def_type = ["ETF/股票", "基金", "基金"]
+        _hl_def_id   = ["006208", "B2abw8B", "B090460"]
+        _hl_def_pct  = [50, 50, 0]
+        for i in range(3):
+            if f"hl_t{i}"   not in st.session_state: st.session_state[f"hl_t{i}"]   = _hl_def_name[i]
+            if f"hl_tid{i}" not in st.session_state: st.session_state[f"hl_tid{i}"] = _hl_def_id[i]
+            if f"hl_tt{i}"  not in st.session_state: st.session_state[f"hl_tt{i}"]  = _hl_def_type[i]
+            if f"hl_p{i}"   not in st.session_state: st.session_state[f"hl_p{i}"]   = _hl_def_pct[i]
         hl_targets = []
         for i in range(hl_num):
             h1, h2, h3, h4 = st.columns([2, 1, 1, 1])
-            with h1: t = st.text_input(f"標的{i+1}名稱", value=defaults_hl_name[i], key=f"hl_t{i}")
-            with h2: tid = st.text_input(f"代碼{i+1}", value=defaults_hl_id[i], key=f"hl_tid{i}")
+            with h1: t = st.text_input(f"標的{i+1}名稱", key=f"hl_t{i}")
+            with h2: tid = st.text_input(f"代碼{i+1}", key=f"hl_tid{i}")
             with h3:
-                _hl_type_opts = ["ETF/股票","基金"]
-                _hl_type_saved = st.session_state.get(f"hl_tt{i}", defaults_hl_type[i])
-                _hl_type_idx = _hl_type_opts.index(_hl_type_saved) if _hl_type_saved in _hl_type_opts else 0
-                ttype = st.selectbox(f"類型{i+1}", _hl_type_opts, index=_hl_type_idx, key=f"hl_tt{i}", label_visibility="collapsed")
-            with h4: p = st.number_input(f"比例{i+1}%", value=defaults_hl_pct[i], min_value=0, max_value=100, key=f"hl_p{i}", label_visibility="collapsed")
+                _hl_opts = ["ETF/股票","基金"]
+                _hl_tidx = _hl_opts.index(st.session_state[f"hl_tt{i}"]) if st.session_state.get(f"hl_tt{i}") in _hl_opts else 0
+                ttype = st.selectbox(f"類型{i+1}", _hl_opts, index=_hl_tidx, key=f"hl_tt{i}", label_visibility="collapsed")
+            with h4: p = st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"hl_p{i}", label_visibility="collapsed")
             hl_targets.append((t, tid, ttype, p))
         inv_total_hl = 0  # 佔位用，實際金額由各標的 inv_this 決定
 
