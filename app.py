@@ -1545,9 +1545,139 @@ elif module == "💳 信貸投資套利":
         st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         render_ai(advice_credit, "系統分析 · 信貸套利")
 
+        # ── 損益平衡分析 + 換標的建議 ──
+        st.markdown('<p class="section-header">損益平衡分析與標的建議</p>', unsafe_allow_html=True)
+
+        # 計算損益平衡所需的最低報酬率
+        # 需要滿足：inv_amount × (1+r)^loan_years = total_payment
+        # => r = (total_payment / inv_amount)^(1/loan_years) - 1
+        if inv_amount > 0 and total_payment > 0:
+            breakeven_rate = ((total_payment / inv_amount) ** (1 / loan_years) - 1) * 100
+        else:
+            breakeven_rate = 0
+
+        gap_to_breakeven = breakeven_rate - weighted_return
+
+        be1, be2, be3 = st.columns(3)
+        be1.metric(
+            "損益平衡所需報酬率",
+            f"{breakeven_rate:.2f}%",
+            help="投資終值 = 總還款金額時的年化報酬率"
+        )
+        be2.metric(
+            "目前組合報酬率",
+            f"{weighted_return:.2f}%",
+            delta=f"{'超過' if weighted_return >= breakeven_rate else '不足'} {abs(gap_to_breakeven):.2f}%",
+            delta_color="normal" if weighted_return >= breakeven_rate else "inverse"
+        )
+        be3.metric(
+            "現況判斷",
+            "可獲利" if weighted_return >= breakeven_rate else "會虧損",
+            delta=f"差距 {abs(gap_to_breakeven):.2f}%" if weighted_return < breakeven_rate else "已超過損益平衡"
+        )
+
+        if weighted_return < breakeven_rate:
+            st.warning(f"""
+⚠️ **目前配置報酬率 {weighted_return:.2f}% 低於損益平衡點 {breakeven_rate:.2f}%**
+
+到期淨利潤為負值的原因：7年利息支出侵蝕了投資獲利。
+需要將組合報酬率提升 **{gap_to_breakeven:.2f}%** 才能損益平衡。
+""")
+        else:
+            st.success(f"✅ 目前配置報酬率 {weighted_return:.2f}% 已超過損益平衡點 {breakeven_rate:.2f}%，可獲利。")
+
+        # ── 推薦標的建議 ──
+        st.markdown("**換標的建議（依目標調整）**")
+
+        # 建議標的資料庫
+        suggested_targets = [
+            {"name": "元大台灣50 (0050)", "code": "0050", "type": "成長型",
+             "est_return": 14.0, "risk": "中", "特色": "台股大盤，長期成長穩定"},
+            {"name": "富邦台50 (006208)", "code": "006208", "type": "成長型",
+             "est_return": 14.0, "risk": "中", "特色": "0050同類型，費用率更低"},
+            {"name": "國泰永續高股息 (00878)", "code": "00878", "type": "配息型",
+             "est_return": 10.0, "risk": "中低", "特色": "ESG篩選，穩定配息"},
+            {"name": "元大高股息 (0056)", "code": "0056", "type": "配息型",
+             "est_return": 9.5, "risk": "中低", "特色": "高股息策略，月月配"},
+            {"name": "群益台灣精選高息 (00919)", "code": "00919", "type": "配息型",
+             "est_return": 11.0, "risk": "中", "特色": "精選高息股，月配息"},
+            {"name": "安聯收益成長 (B2abw8B)", "code": "B2abw8B", "type": "配息型",
+             "est_return": 8.0, "risk": "中高", "特色": "多元資產，月配息穩定"},
+            {"name": "統一奔騰基金 (B090460)", "code": "B090460", "type": "成長型",
+             "est_return": 12.0, "risk": "中高", "特色": "台股主動選股，長期績效佳"},
+        ]
+
+        # 根據當前狀況給出不同建議策略
+        st.markdown(f"""
+<div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);
+padding:14px 18px;margin:10px 0;font-size:13px;line-height:1.8;">
+<b>三種調整策略：</b><br>
+{"🔴 策略A（優先）：換入高報酬成長型，拼7年後終值獲利，犧牲月配息" if weighted_return < breakeven_rate else "🟢 策略A：維持現有配置，已可獲利"}
+<br>
+🟡 策略B：部分換入更高配息率標的，提升月現金流，降低每月自補壓力<br>
+🔵 策略C：縮短貸款年期或降低貸款金額，減少總利息支出
+</div>
+""", unsafe_allow_html=True)
+
+        # 顯示建議標的表格
+        df_suggest = pd.DataFrame([{
+            "標的名稱": t["name"],
+            "代碼": t["code"],
+            "類型": t["type"],
+            "預期年化報酬率": f"{t['est_return']}%",
+            "風險等級": t["risk"],
+            "特色": t["特色"],
+            "是否達損益平衡": "✅ 可獲利" if t["est_return"] >= breakeven_rate else f"❌ 仍不足（差 {breakeven_rate - t['est_return']:.1f}%）"
+        } for t in suggested_targets])
+
+        st.dataframe(df_suggest, use_container_width=True, hide_index=True)
+        st.caption("※ 以上預期報酬率為參考值，實際以各標的歷史績效為準，過去績效不代表未來表現")
+
+        # ── 換標的後試算：讓用戶選一個標的看效果 ──
+        st.markdown("**快速試算：換入特定標的後的效果**")
+        sel_name = st.selectbox(
+            "選擇想換入的標的",
+            [t["name"] for t in suggested_targets],
+            key="cl_suggest_sel"
+        )
+        sel = next(t for t in suggested_targets if t["name"] == sel_name)
+        sel_pct = st.slider("換入比例（%）", 10, 100, 50, 10, key="cl_suggest_pct")
+
+        # 計算換入後的新組合報酬率
+        keep_pct = 100 - sel_pct
+        new_weighted = (weighted_return * keep_pct / 100) + (sel["est_return"] * sel_pct / 100)
+        new_fv = inv_amount * (1 + new_weighted / 100) ** loan_years
+        new_profit = new_fv - total_payment
+        new_arb = new_weighted - loan_rate
+
+        # 新配息（若換入配息型）
+        new_monthly_div = monthly_dividend * keep_pct / 100
+        if sel["type"] == "配息型":
+            new_monthly_div += (inv_amount * sel_pct / 100) * (sel["est_return"] / 100 / 12)
+        new_net_flow = new_monthly_div - monthly_payment
+
+        s1, s2, s3, s4 = st.columns(4)
+        s1.metric("新組合報酬率", f"{new_weighted:.2f}%",
+                  delta=f"+{new_weighted - weighted_return:.2f}%" if new_weighted > weighted_return else f"{new_weighted - weighted_return:.2f}%")
+        s2.metric("新配息月現金流", f"${new_monthly_div:,.0f}",
+                  delta=f"{'+' if new_monthly_div >= monthly_dividend else ''}{new_monthly_div - monthly_dividend:,.0f}")
+        s3.metric(f"{loan_years}年後新終值", f"${new_fv:,.0f}",
+                  delta=f"{'+' if new_fv >= final_inv_val else ''}{new_fv - final_inv_val:,.0f}")
+        s4.metric("新淨利潤", f"${new_profit:,.0f}",
+                  delta="轉虧為盈！" if new_profit > 0 > net_profit_total else "仍虧損" if new_profit <= 0 else "獲利增加",
+                  delta_color="normal" if new_profit > 0 else "inverse")
+
+        if new_profit > 0 and net_profit_total <= 0:
+            st.success(f"✅ 換入 {sel_name} {sel_pct}% 後，到期淨利潤從 ${net_profit_total:,.0f} 轉為 ${new_profit:,.0f}，成功轉虧為盈！")
+        elif new_profit > net_profit_total:
+            st.info(f"換入後淨利潤改善 ${new_profit - net_profit_total:,.0f}，但仍需注意風險。")
+        else:
+            st.warning(f"此調整效果有限，建議考慮其他策略組合。")
+
         pdf_bytes_c = build_pdf(client_name, [
             {"title": "標的報酬率", "content": None, "table": df_cagr},
             {"title": "信貸套利試算", "content": None, "table": df_credit},
+            {"title": "建議換標的", "content": None, "table": df_suggest},
             {"title": "分析報告", "content": strip_md(advice_credit), "table": None},
         ])
         st.download_button("📥 下載 PDF 報告", pdf_bytes_c,
