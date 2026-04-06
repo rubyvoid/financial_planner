@@ -1872,24 +1872,32 @@ elif module == "🏠 房貸減壓分析":
                 elif cagr < 0:
                     st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 為負值，建議手動輸入合理預期值")
 
+            # session_state 初始化（只在第一次設預設值，切換模組後不重置）
+            if f"hl_exp_{tid}" not in st.session_state:
+                st.session_state[f"hl_exp_{tid}"] = float(suggested)
+            if f"hl_div_{tid}" not in st.session_state:
+                st.session_state[f"hl_div_{tid}"] = "配息型" if ttype == "基金" else "成長型"
+            if f"hl_inv_{tid}" not in st.session_state:
+                st.session_state[f"hl_inv_{tid}"] = int(100 * pct / 100) if pct > 0 else 0
             r1, r2, r3 = st.columns([3, 1, 1])
             with r1:
                 exp = st.number_input(
                     f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
-                    value=float(suggested), min_value=0.0, max_value=30.0, step=0.5,
+                    min_value=0.0, max_value=30.0, step=0.5,
                     key=f"hl_exp_{tid}"
                 )
             with r2:
+                _div_opts = ["配息型", "成長型"]
+                _div_cur  = st.session_state.get(f"hl_div_{tid}", "配息型" if ttype == "基金" else "成長型")
+                _div_idx  = _div_opts.index(_div_cur) if _div_cur in _div_opts else 0
                 is_dividend = st.selectbox(
-                    "類型", ["配息型", "成長型"],
-                    index=0 if ttype == "基金" else 1,
+                    "類型", _div_opts, index=_div_idx,
                     key=f"hl_div_{tid}",
                     help="配息型：有月配息；成長型：無配息只有增值"
                 )
             with r3:
                 inv_this = st.number_input(
                     "投入（萬）",
-                    value=int(100 * pct / 100) if pct > 0 else 0,
                     min_value=0, step=50,
                     key=f"hl_inv_{tid}",
                     label_visibility="visible"
