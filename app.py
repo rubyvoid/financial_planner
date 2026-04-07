@@ -1436,30 +1436,22 @@ elif module == "💳 信貸投資套利":
         _cl_def = [("006208 富邦台50","006208","ETF/股票",50,600000),
                    ("安聯收益成長","B2abw8B","基金",50,600000),
                    ("統一奔騰基金","B090460","基金",0,0)]
-        for i in range(3):
-            for k,v in [(f"cl_t{i}",_cl_def[i][0]),(f"cl_tid{i}",_cl_def[i][1]),
-                        (f"cl_tt{i}",_cl_def[i][2]),(f"cl_p{i}",_cl_def[i][3]),
-                        (f"cl_inv{i}",_cl_def[i][4])]:
-                if k not in st.session_state: st.session_state[k] = v
+        
         cl_targets = []
         # --- 修正後的 Widget 渲染區 ---
+       # --- 修正後的 Module 6 渲染區（直接從 State 讀取） ---
         cl_targets = []
         for i in range(cl_num):
             c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
-            with c1: 
-                # 只認 key，不傳 value
-                st.text_input(f"標的{i+1}名稱", key=f"cl_t{i}") 
-            with c2: 
-                st.text_input(f"代碼{i+1}", key=f"cl_tid{i}")
-            with c3:
-                # 只認 key，不傳 index
-                st.selectbox(f"類型{i+1}", ["ETF/股票", "基金"], key=f"cl_tt{i}", label_visibility="collapsed")
-            with c4: 
-                st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
-            with c5: 
-                st.number_input(f"投入（元）", min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
+            with c1: st.text_input(f"標的{i+1}名稱", key=f"cl_t{i}") 
+            with c2: st.text_input(f"代碼{i+1}", key=f"cl_tid{i}")
+            with c3: 
+                # 注意：這裡不設 index=...
+                st.selectbox(f"類型{i+1}", ["ETF/股票","基金"], key=f"cl_tt{i}", label_visibility="collapsed")
+            with c4: st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
+            with c5: st.number_input(f"投入（元）", min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
             
-            # 從綁定的 session_state 讀取最新狀態進行計算
+            # 從綁定的 session_state 讀取當前值進行後續計算
             cl_targets.append((
                 st.session_state[f"cl_t{i}"],
                 st.session_state[f"cl_tid{i}"],
@@ -1849,10 +1841,7 @@ elif module == "🏠 房貸減壓分析":
         _hl_def = [("006208 富邦台50","006208","ETF/股票",50),
                    ("安聯收益成長","B2abw8B","基金",50),
                    ("統一奔騰基金","B090460","基金",0)]
-        for i in range(3):
-            for k,v in [(f"hl_t{i}",_hl_def[i][0]),(f"hl_tid{i}",_hl_def[i][1]),
-                        (f"hl_tt{i}",_hl_def[i][2]),(f"hl_p{i}",_hl_def[i][3])]:
-                if k not in st.session_state: st.session_state[k] = v
+        
         hl_targets = []
         for i in range(hl_num):
             h1, h2, h3, h4 = st.columns([2, 1, 1, 1])
