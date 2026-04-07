@@ -158,11 +158,37 @@ hr { border-color: #e0e7ff !important; }
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
-# Session State
+# Session State 最終修正版
 # ─────────────────────────────────────────────
-for key in ['run_investment', 'run_health', 'run_insurance', 'run_retirement', 'run_tax']:
+# 1. 模組開關
+for key in ['run_investment', 'run_health', 'run_insurance', 'run_retirement', 'run_tax', 'run_overseas', 'run_estate']:
     if key not in st.session_state:
         st.session_state[key] = False
+
+# 2. 信貸套利預設值 (Module 6)
+_cl_defaults = [
+    ("006208 富邦台50", "006208", "ETF/股票", 50, 600000),
+    ("安聯收益成長", "B2abw8B", "基金", 50, 600000),
+    ("統一奔騰基金", "B090460", "基金", 0, 0)
+]
+for i, (n, tid, tt, p, inv) in enumerate(_cl_defaults):
+    if f"cl_t{i}" not in st.session_state: st.session_state[f"cl_t{i}"] = n
+    if f"cl_tid{i}" not in st.session_state: st.session_state[f"cl_tid{i}"] = tid
+    if f"cl_tt{i}" not in st.session_state: st.session_state[f"cl_tt{i}"] = tt
+    if f"cl_p{i}" not in st.session_state: st.session_state[f"cl_p{i}"] = p
+    if f"cl_inv{i}" not in st.session_state: st.session_state[f"cl_inv{i}"] = inv
+
+# 3. 房貸減壓預設值 (Module 7)
+_hl_defaults = [
+    ("006208 富邦台50", "006208", "ETF/股票", 50),
+    ("安聯收益成長", "B2abw8B", "基金", 50),
+    ("統一奔騰基金", "B090460", "基金", 0)
+]
+for i, (n, tid, tt, p) in enumerate(_hl_defaults):
+    if f"hl_t{i}" not in st.session_state: st.session_state[f"hl_t{i}"] = n
+    if f"hl_tid{i}" not in st.session_state: st.session_state[f"hl_tid{i}"] = tid
+    if f"hl_tt{i}" not in st.session_state: st.session_state[f"hl_tt{i}"] = tt
+    if f"hl_p{i}" not in st.session_state: st.session_state[f"hl_p{i}"] = p
 
 # ─────────────────────────────────────────────
 # 工具函數
@@ -1416,16 +1442,31 @@ elif module == "💳 信貸投資套利":
                         (f"cl_inv{i}",_cl_def[i][4])]:
                 if k not in st.session_state: st.session_state[k] = v
         cl_targets = []
+        # --- 修正後的 Widget 渲染區 ---
+        cl_targets = []
         for i in range(cl_num):
             c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
-            with c1: t = st.text_input(f"標的{i+1}名稱", key=f"cl_t{i}")
-            with c2: tid = st.text_input(f"代碼{i+1}", key=f"cl_tid{i}")
+            with c1: 
+                # 只認 key，不傳 value
+                st.text_input(f"標的{i+1}名稱", key=f"cl_t{i}") 
+            with c2: 
+                st.text_input(f"代碼{i+1}", key=f"cl_tid{i}")
             with c3:
-                _o=["ETF/股票","基金"]; _v=st.session_state.get(f"cl_tt{i}","ETF/股票")
-                ttype = st.selectbox(f"類型{i+1}",_o,index=_o.index(_v) if _v in _o else 0,key=f"cl_tt{i}",label_visibility="collapsed")
-            with c4: p = st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
-            with c5: inv_i = st.number_input(f"投入（元）", min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
-            cl_targets.append((t, tid, ttype, p, inv_i))
+                # 只認 key，不傳 index
+                st.selectbox(f"類型{i+1}", ["ETF/股票", "基金"], key=f"cl_tt{i}", label_visibility="collapsed")
+            with c4: 
+                st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
+            with c5: 
+                st.number_input(f"投入（元）", min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
+            
+            # 從綁定的 session_state 讀取最新狀態進行計算
+            cl_targets.append((
+                st.session_state[f"cl_t{i}"],
+                st.session_state[f"cl_tid{i}"],
+                st.session_state[f"cl_tt{i}"],
+                st.session_state[f"cl_p{i}"],
+                st.session_state[f"cl_inv{i}"]
+            ))
 
         total_cl_pct = sum(x[3] for x in cl_targets)
         inv_amount   = sum(x[4] for x in cl_targets)  # 總投資金額（各標的加總）
