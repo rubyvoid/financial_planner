@@ -1399,37 +1399,25 @@ elif module == "💳 信貸投資套利":
         st.caption("請在各標的欄位填入實際投入金額（元），系統自動加總")
         st.markdown("**投資標的配置（1～3個，比例合計需為100%）**")
         cl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="cl_num")
-        # 第一次開啟時設定預設值，之後切換模組不重置
-        _cl_def = [
-            ("006208 富邦台50", "006208", "ETF/股票", 50, 600000),
-            ("安聯收益成長",    "B2abw8B", "基金",    50, 600000),
-            ("統一奔騰基金",    "B090460", "基金",     0,       0),
-        ]
+        # ── session_state 初始化（只在第一次設預設值，切換模組後保留）──
+        _cl_def = [("006208 富邦台50","006208","ETF/股票",50,600000),
+                   ("安聯收益成長","B2abw8B","基金",50,600000),
+                   ("統一奔騰基金","B090460","基金",0,0)]
         for i in range(3):
-            if f"cl_t{i}"   not in st.session_state: st.session_state[f"cl_t{i}"]   = _cl_def[i][0]
-            if f"cl_tid{i}" not in st.session_state: st.session_state[f"cl_tid{i}"] = _cl_def[i][1]
-            if f"cl_tt{i}"  not in st.session_state: st.session_state[f"cl_tt{i}"]  = _cl_def[i][2]
-            if f"cl_p{i}"   not in st.session_state: st.session_state[f"cl_p{i}"]   = _cl_def[i][3]
-            if f"cl_inv{i}" not in st.session_state: st.session_state[f"cl_inv{i}"] = _cl_def[i][4]
+            for k,v in [(f"cl_t{i}",_cl_def[i][0]),(f"cl_tid{i}",_cl_def[i][1]),
+                        (f"cl_tt{i}",_cl_def[i][2]),(f"cl_p{i}",_cl_def[i][3]),
+                        (f"cl_inv{i}",_cl_def[i][4])]:
+                if k not in st.session_state: st.session_state[k] = v
         cl_targets = []
         for i in range(cl_num):
             c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
-            with c1:
-                t = st.text_input(f"標的{i+1}名稱", key=f"cl_t{i}")
-            with c2:
-                tid = st.text_input(f"代碼{i+1}", key=f"cl_tid{i}")
+            with c1: t = st.text_input(f"標的{i+1}名稱", key=f"cl_t{i}")
+            with c2: tid = st.text_input(f"代碼{i+1}", key=f"cl_tid{i}")
             with c3:
-                _opts = ["ETF/股票", "基金"]
-                _cur  = st.session_state.get(f"cl_tt{i}", "ETF/股票")
-                _idx  = _opts.index(_cur) if _cur in _opts else 0
-                ttype = st.selectbox(f"類型{i+1}", _opts, index=_idx,
-                                     key=f"cl_tt{i}", label_visibility="collapsed")
-            with c4:
-                p = st.number_input(f"比例{i+1}%", min_value=0, max_value=100,
-                                    key=f"cl_p{i}", label_visibility="collapsed")
-            with c5:
-                inv_i = st.number_input(f"投入（元）", min_value=0, step=100000,
-                                        key=f"cl_inv{i}", label_visibility="collapsed")
+                _o=["ETF/股票","基金"]; _v=st.session_state.get(f"cl_tt{i}","ETF/股票")
+                ttype = st.selectbox(f"類型{i+1}",_o,index=_o.index(_v) if _v in _o else 0,key=f"cl_tt{i}",label_visibility="collapsed")
+            with c4: p = st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
+            with c5: inv_i = st.number_input(f"投入（元）", min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
             cl_targets.append((t, tid, ttype, p, inv_i))
 
         total_cl_pct = sum(x[3] for x in cl_targets)
@@ -1461,20 +1449,16 @@ elif module == "💳 信貸投資套利":
                 elif cagr < 0:
                     st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 為負值，建議手動輸入合理預期值")
 
+            if f"cl_exp_{tid}" not in st.session_state: st.session_state[f"cl_exp_{tid}"] = float(suggested)
+            if f"cl_div_{tid}" not in st.session_state: st.session_state[f"cl_div_{tid}"] = "配息型" if ttype=="基金" else "成長型"
             c1, c2 = st.columns([4, 1])
             with c1:
-                exp = st.number_input(
-                    f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
-                    value=float(suggested), min_value=0.0, max_value=30.0, step=0.5,
-                    key=f"cl_exp_{tid}"
-                )
+                exp = st.number_input(f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
+                    min_value=0.0, max_value=30.0, step=0.5, key=f"cl_exp_{tid}")
             with c2:
-                is_dividend = st.selectbox(
-                    "類型", ["配息型", "成長型"],
-                    index=0 if ttype == "基金" else 1,
-                    key=f"cl_div_{tid}",
-                    label_visibility="collapsed"
-                )
+                _o=["配息型","成長型"]; _v=st.session_state.get(f"cl_div_{tid}","配息型")
+                is_dividend = st.selectbox("類型",_o,index=_o.index(_v) if _v in _o else 0,
+                    key=f"cl_div_{tid}",label_visibility="collapsed")
             cagr_results.append((name, tid, pct, cagr_display, exp, is_dividend, inv_this_cl))
             weighted_return += exp * pct / 100
             if is_dividend == "配息型":
@@ -1813,33 +1797,23 @@ elif module == "🏠 房貸減壓分析":
         st.caption("請在各標的欄位填入實際投入金額，系統自動加總")
         st.markdown("**投資標的（1～3個，比例合計需為100%）**")
         hl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="hl_num")
-        # 第一次開啟時設定預設值，之後切換模組不重置
-        _hl_def = [
-            ("006208 富邦台50", "006208", "ETF/股票", 50),
-            ("安聯收益成長",    "B2abw8B", "基金",    50),
-            ("統一奔騰基金",    "B090460", "基金",     0),
-        ]
+        # ── session_state 初始化（只在第一次設預設值，切換模組後保留）──
+        _hl_def = [("006208 富邦台50","006208","ETF/股票",50),
+                   ("安聯收益成長","B2abw8B","基金",50),
+                   ("統一奔騰基金","B090460","基金",0)]
         for i in range(3):
-            if f"hl_t{i}"   not in st.session_state: st.session_state[f"hl_t{i}"]   = _hl_def[i][0]
-            if f"hl_tid{i}" not in st.session_state: st.session_state[f"hl_tid{i}"] = _hl_def[i][1]
-            if f"hl_tt{i}"  not in st.session_state: st.session_state[f"hl_tt{i}"]  = _hl_def[i][2]
-            if f"hl_p{i}"   not in st.session_state: st.session_state[f"hl_p{i}"]   = _hl_def[i][3]
+            for k,v in [(f"hl_t{i}",_hl_def[i][0]),(f"hl_tid{i}",_hl_def[i][1]),
+                        (f"hl_tt{i}",_hl_def[i][2]),(f"hl_p{i}",_hl_def[i][3])]:
+                if k not in st.session_state: st.session_state[k] = v
         hl_targets = []
         for i in range(hl_num):
             h1, h2, h3, h4 = st.columns([2, 1, 1, 1])
-            with h1:
-                t = st.text_input(f"標的{i+1}名稱", key=f"hl_t{i}")
-            with h2:
-                tid = st.text_input(f"代碼{i+1}", key=f"hl_tid{i}")
+            with h1: t = st.text_input(f"標的{i+1}名稱", key=f"hl_t{i}")
+            with h2: tid = st.text_input(f"代碼{i+1}", key=f"hl_tid{i}")
             with h3:
-                _opts = ["ETF/股票", "基金"]
-                _cur  = st.session_state.get(f"hl_tt{i}", "ETF/股票")
-                _idx  = _opts.index(_cur) if _cur in _opts else 0
-                ttype = st.selectbox(f"類型{i+1}", _opts, index=_idx,
-                                     key=f"hl_tt{i}", label_visibility="collapsed")
-            with h4:
-                p = st.number_input(f"比例{i+1}%", min_value=0, max_value=100,
-                                    key=f"hl_p{i}", label_visibility="collapsed")
+                _o=["ETF/股票","基金"]; _v=st.session_state.get(f"hl_tt{i}","ETF/股票")
+                ttype = st.selectbox(f"類型{i+1}",_o,index=_o.index(_v) if _v in _o else 0,key=f"hl_tt{i}",label_visibility="collapsed")
+            with h4: p = st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"hl_p{i}", label_visibility="collapsed")
             hl_targets.append((t, tid, ttype, p))
         inv_total_hl = 0  # 佔位用，實際金額由各標的 inv_this 決定
 
@@ -1872,37 +1846,20 @@ elif module == "🏠 房貸減壓分析":
                 elif cagr < 0:
                     st.warning(f"⚠️ {name} 近3年CAGR {cagr:.1f}% 為負值，建議手動輸入合理預期值")
 
-            # session_state 初始化（只在第一次設預設值，切換模組後不重置）
-            if f"hl_exp_{tid}" not in st.session_state:
-                st.session_state[f"hl_exp_{tid}"] = float(suggested)
-            if f"hl_div_{tid}" not in st.session_state:
-                st.session_state[f"hl_div_{tid}"] = "配息型" if ttype == "基金" else "成長型"
-            if f"hl_inv_{tid}" not in st.session_state:
-                st.session_state[f"hl_inv_{tid}"] = int(100 * pct / 100) if pct > 0 else 0
+            if f"hl_exp_{tid}" not in st.session_state: st.session_state[f"hl_exp_{tid}"] = float(suggested)
+            if f"hl_div_{tid}" not in st.session_state: st.session_state[f"hl_div_{tid}"] = "配息型" if ttype=="基金" else "成長型"
+            if f"hl_inv_{tid}" not in st.session_state: st.session_state[f"hl_inv_{tid}"] = int(100*pct/100) if pct>0 else 0
             r1, r2, r3 = st.columns([3, 1, 1])
             with r1:
-                exp = st.number_input(
-                    f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
-                    min_value=0.0, max_value=30.0, step=0.5,
-                    key=f"hl_exp_{tid}"
-                )
+                exp = st.number_input(f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
+                    min_value=0.0, max_value=30.0, step=0.5, key=f"hl_exp_{tid}")
             with r2:
-                _div_opts = ["配息型", "成長型"]
-                _div_cur  = st.session_state.get(f"hl_div_{tid}", "配息型" if ttype == "基金" else "成長型")
-                _div_idx  = _div_opts.index(_div_cur) if _div_cur in _div_opts else 0
-                is_dividend = st.selectbox(
-                    "類型", _div_opts, index=_div_idx,
-                    key=f"hl_div_{tid}",
-                    help="配息型：有月配息；成長型：無配息只有增值"
-                )
+                _o=["配息型","成長型"]; _v=st.session_state.get(f"hl_div_{tid}","配息型")
+                is_dividend = st.selectbox("類型",_o,index=_o.index(_v) if _v in _o else 0,
+                    key=f"hl_div_{tid}",help="配息型：有月配息；成長型：無配息只有增值")
             with r3:
-                inv_this = st.number_input(
-                    "投入（萬）",
-                    min_value=0, step=50,
-                    key=f"hl_inv_{tid}",
-                    label_visibility="visible"
-                )
-
+                inv_this = st.number_input("投入（萬）",min_value=0,step=50,
+                    key=f"hl_inv_{tid}",label_visibility="visible")
             hl_cagr_results.append((name, tid, pct, cagr_display, exp, is_dividend, inv_this))
 
             # 成長型：貢獻到整體資產終值報酬率
