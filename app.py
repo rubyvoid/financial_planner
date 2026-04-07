@@ -530,7 +530,7 @@ def get_cagr(ticker, ticker_type, dummy_name="標的"):
 with st.sidebar:
     st.markdown("## 💼 財務規劃系統")
     st.markdown("---")
-    module = st.radio("選擇模組", [
+    _modules = [
         "📊 投資組合分析",
         "🏥 客戶財務健診",
         "🛡️ 保險需求分析",
@@ -538,9 +538,16 @@ with st.sidebar:
         "🧾 稅務規劃",
         "💳 信貸投資套利",
         "🏠 房貸減壓分析",
-    ])
+    ]
+    if "module" not in st.session_state:
+        st.session_state["module"] = "📊 投資組合分析"
+    module = st.radio("選擇模組", _modules,
+        index=_modules.index(st.session_state["module"]) if st.session_state["module"] in _modules else 0,
+        key="module")
     st.markdown("---")
-    client_name = st.text_input("客戶姓名", "王小明")
+    if "client_name" not in st.session_state:
+        st.session_state["client_name"] = "王小明"
+    client_name = st.text_input("客戶姓名", key="client_name")
     st.caption(f"製表日期：{time.strftime('%Y/%m/%d')}")
 
     # ── 免責聲明 ──
@@ -1388,22 +1395,17 @@ elif module == "💳 信貸投資套利":
     </div>
     """, unsafe_allow_html=True)
 
-    # ── session_state 初始化（只在第一次設預設值）──
-    for _k, _v in [("cl_amt",1000000),("cl_rate",2.5),("cl_yr",7),("cl_inv",1000000)]:
-        if _k not in st.session_state: st.session_state[_k] = _v
-
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**信貸條件**")
-        loan_amount = st.number_input("貸款金額（元）", step=50000, key="cl_amt")
-        loan_rate   = st.slider("信貸年利率（%）", 1.0, 8.0, st.session_state.get("cl_rate", 2.5), 0.1, key="cl_rate")
-        loan_years  = st.number_input("貸款年期（年）", min_value=1, max_value=10, key="cl_yr")
+        loan_amount = st.number_input("貸款金額（元）", value=1000000, step=50000, key="cl_amt")
+        loan_rate   = st.slider("信貸年利率（%）", 1.0, 8.0, 2.5, 0.1, key="cl_rate")
+        loan_years  = st.number_input("貸款年期（年）", value=7, min_value=1, max_value=10, key="cl_yr")
     with col2:
         st.markdown("**投資設定**")
         st.caption("請在各標的欄位填入實際投入金額（元），系統自動加總")
         st.markdown("**投資標的配置（1～3個，比例合計需為100%）**")
-        if "cl_num" not in st.session_state: st.session_state["cl_num"] = 2
-        cl_num = st.radio("標的數量", [1, 2, 3], index=[1,2,3].index(st.session_state["cl_num"]), horizontal=True, key="cl_num")
+        cl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="cl_num")
         # ── session_state 初始化（只在第一次設預設值，切換模組後保留）──
         _cl_def = [("006208 富邦台50","006208","ETF/股票",50,600000),
                    ("安聯收益成長","B2abw8B","基金",50,600000),
@@ -1778,36 +1780,30 @@ elif module == "🏠 房貸減壓分析":
     </div>
     """, unsafe_allow_html=True)
 
-    # ── session_state 初始化（只在第一次設預設值）──
-    for _k,_v in [("hl_bal",800),("hl_pay",32000),("hl_a_amt",800),("hl_a_rate",2.1),
-                  ("hl_a_yr",30),("hl_b_amt",0),("hl_b_rate",2.5),("hl_b_yr",5),("hl_b_total",30)]:
-        if _k not in st.session_state: st.session_state[_k] = _v
-
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**1. 原房貸狀況**")
-        orig_loan_bal = st.number_input("原房貸餘額（萬）", step=50, key="hl_bal")
-        orig_monthly  = st.number_input("原每月還款額（元）", step=1000, key="hl_pay")
+        orig_loan_bal = st.number_input("原房貸餘額（萬）", value=800, step=50, key="hl_bal")
+        orig_monthly  = st.number_input("原每月還款額（元）", value=32000, step=1000, key="hl_pay")
         st.markdown("**2. 轉增貸 / 新房貸方案**")
         st.markdown("**本利攤還型**")
         hc1, hc2, hc3 = st.columns(3)
-        with hc1: new_loan_a  = st.number_input("金額（萬）", step=50, key="hl_a_amt")
-        with hc2: new_rate_a  = st.number_input("利率（%）", step=0.1, key="hl_a_rate", format="%.1f")
-        with hc3: new_years_a = st.number_input("年期", step=1, key="hl_a_yr")
+        with hc1: new_loan_a  = st.number_input("金額（萬）", value=800, step=50, key="hl_a_amt")
+        with hc2: new_rate_a  = st.number_input("利率（%）", value=2.1, step=0.1, key="hl_a_rate", format="%.1f")
+        with hc3: new_years_a = st.number_input("年期", value=30, step=1, key="hl_a_yr")
         st.markdown("**理財型（寬限期）**")
         hd1, hd2, hd3, hd4 = st.columns(4)
-        with hd1: new_loan_b   = st.number_input("金額（萬）", step=50, key="hl_b_amt")
-        with hd2: new_rate_b   = st.number_input("利率（%）", step=0.1, key="hl_b_rate", format="%.1f")
-        with hd3: new_years_b  = st.number_input("寬限年期", step=1, min_value=1, key="hl_b_yr",
+        with hd1: new_loan_b   = st.number_input("金額（萬）", value=0, step=50, key="hl_b_amt")
+        with hd2: new_rate_b   = st.number_input("利率（%）", value=2.5, step=0.1, key="hl_b_rate", format="%.1f")
+        with hd3: new_years_b  = st.number_input("寬限年期", value=5, step=1, min_value=1, key="hl_b_yr",
                                                    help="只付利息的期間（年）")
-        with hd4: new_years_b_total = st.number_input("總年期", step=1, min_value=1, key="hl_b_total",
+        with hd4: new_years_b_total = st.number_input("總年期", value=30, step=1, min_value=1, key="hl_b_total",
                                                         help="含寬限期的總貸款年期（寬限期後剩餘年期才開始攤還本金）")
     with col2:
         st.markdown("**3. 投資設定**")
         st.caption("請在各標的欄位填入實際投入金額，系統自動加總")
         st.markdown("**投資標的（1～3個，比例合計需為100%）**")
-        if "hl_num" not in st.session_state: st.session_state["hl_num"] = 2
-        hl_num = st.radio("標的數量", [1, 2, 3], index=[1,2,3].index(st.session_state["hl_num"]), horizontal=True, key="hl_num")
+        hl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="hl_num")
         # ── session_state 初始化（只在第一次設預設值，切換模組後保留）──
         _hl_def = [("006208 富邦台50","006208","ETF/股票",50),
                    ("安聯收益成長","B2abw8B","基金",50),
