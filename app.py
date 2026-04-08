@@ -475,10 +475,10 @@ def get_stock_data(stock_id, name):
 
 def calculate_dca(df_nav, monthly):
     df = df_nav.copy().sort_values('date').set_index('date')
-    # 先補齊成每日資料（線性內插），再 resample 成每月末
-    # 解決鉅亨 API 回傳季頻/不規則頻率導致 DCA 變成季投的問題
+    # 補齊每日資料（線性內插），解決鉅亨API季頻資料導致DCA變季投問題
     full_idx = pd.date_range(df.index.min(), df.index.max(), freq='D')
-    df = df.reindex(full_idx).interpolate(method='linear')
+    df = df[['nav']].reindex(full_idx).interpolate(method='linear')
+    df.index.name = 'date'
     mdf = df.resample('ME').last().dropna().reset_index()
     mdf.columns = ['date', 'nav']
     if mdf.empty: return pd.DataFrame(), 0, 0, 0
