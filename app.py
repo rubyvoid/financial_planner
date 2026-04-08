@@ -158,37 +158,11 @@ hr { border-color: #e0e7ff !important; }
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
-# Session State 最終修正版
+# Session State
 # ─────────────────────────────────────────────
-# 1. 模組開關
-for key in ['run_investment', 'run_health', 'run_insurance', 'run_retirement', 'run_tax', 'run_overseas', 'run_estate']:
+for key in ['run_investment', 'run_health', 'run_insurance', 'run_retirement', 'run_tax']:
     if key not in st.session_state:
         st.session_state[key] = False
-
-# 2. 信貸套利預設值 (Module 6)
-_cl_defaults = [
-    ("006208 富邦台50", "006208", "ETF/股票", 50, 600000),
-    ("安聯收益成長", "B2abw8B", "基金", 50, 600000),
-    ("統一奔騰基金", "B090460", "基金", 0, 0)
-]
-for i, (n, tid, tt, p, inv) in enumerate(_cl_defaults):
-    if f"cl_t{i}" not in st.session_state: st.session_state[f"cl_t{i}"] = n
-    if f"cl_tid{i}" not in st.session_state: st.session_state[f"cl_tid{i}"] = tid
-    if f"cl_tt{i}" not in st.session_state: st.session_state[f"cl_tt{i}"] = tt
-    if f"cl_p{i}" not in st.session_state: st.session_state[f"cl_p{i}"] = p
-    if f"cl_inv{i}" not in st.session_state: st.session_state[f"cl_inv{i}"] = inv
-
-# 3. 房貸減壓預設值 (Module 7)
-_hl_defaults = [
-    ("006208 富邦台50", "006208", "ETF/股票", 50),
-    ("安聯收益成長", "B2abw8B", "基金", 50),
-    ("統一奔騰基金", "B090460", "基金", 0)
-]
-for i, (n, tid, tt, p) in enumerate(_hl_defaults):
-    if f"hl_t{i}" not in st.session_state: st.session_state[f"hl_t{i}"] = n
-    if f"hl_tid{i}" not in st.session_state: st.session_state[f"hl_tid{i}"] = tid
-    if f"hl_tt{i}" not in st.session_state: st.session_state[f"hl_tt{i}"] = tt
-    if f"hl_p{i}" not in st.session_state: st.session_state[f"hl_p{i}"] = p
 
 # ─────────────────────────────────────────────
 # 工具函數
@@ -501,7 +475,12 @@ def get_stock_data(stock_id, name):
 
 def calculate_dca(df_nav, monthly):
     df = df_nav.copy().sort_values('date').set_index('date')
+    # 先補齊成每日資料（線性內插），再 resample 成每月末
+    # 解決鉅亨 API 回傳季頻/不規則頻率導致 DCA 變成季投的問題
+    full_idx = pd.date_range(df.index.min(), df.index.max(), freq='D')
+    df = df.reindex(full_idx).interpolate(method='linear')
     mdf = df.resample('ME').last().dropna().reset_index()
+    mdf.columns = ['date', 'nav']
     if mdf.empty: return pd.DataFrame(), 0, 0, 0
     inv, shares, rows = 0, 0, []
     for _, r in mdf.iterrows():
@@ -556,7 +535,7 @@ def get_cagr(ticker, ticker_type, dummy_name="標的"):
 with st.sidebar:
     st.markdown("## 💼 財務規劃系統")
     st.markdown("---")
-    _modules = [
+    module = st.radio("選擇模組", [
         "📊 投資組合分析",
         "🏥 客戶財務健診",
         "🛡️ 保險需求分析",
@@ -564,16 +543,9 @@ with st.sidebar:
         "🧾 稅務規劃",
         "💳 信貸投資套利",
         "🏠 房貸減壓分析",
-    ]
-    if "module" not in st.session_state:
-        st.session_state["module"] = "📊 投資組合分析"
-    module = st.radio("選擇模組", _modules,
-        index=_modules.index(st.session_state["module"]) if st.session_state["module"] in _modules else 0,
-        key="module")
+    ])
     st.markdown("---")
-    if "client_name" not in st.session_state:
-        st.session_state["client_name"] = "王小明"
-    client_name = st.text_input("客戶姓名", key="client_name")
+    client_name = st.text_input("客戶姓名", "王小明")
     st.caption(f"製表日期：{time.strftime('%Y/%m/%d')}")
 
     # ── 免責聲明 ──
@@ -1421,44 +1393,42 @@ elif module == "💳 信貸投資套利":
     </div>
     """, unsafe_allow_html=True)
 
+    # ── session_state 初始化（只在第一次設預設值）──
+    for _k, _v in [("cl_amt",1000000),("cl_rate",2.5),("cl_yr",7),("cl_inv",1000000)]:
+        if _k not in st.session_state: st.session_state[_k] = _v
+
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**信貸條件**")
-        loan_amount = st.number_input("貸款金額（元）", value=1000000, step=50000, key="cl_amt")
-        loan_rate   = st.slider("信貸年利率（%）", 1.0, 8.0, 2.5, 0.1, key="cl_rate")
-        loan_years  = st.number_input("貸款年期（年）", value=7, min_value=1, max_value=10, key="cl_yr")
+        loan_amount = st.number_input("貸款金額（元）", step=50000, key="cl_amt")
+        loan_rate   = st.slider("信貸年利率（%）", 1.0, 8.0, st.session_state.get("cl_rate", 2.5), 0.1, key="cl_rate")
+        loan_years  = st.number_input("貸款年期（年）", min_value=1, max_value=10, key="cl_yr")
     with col2:
         st.markdown("**投資設定**")
         st.caption("請在各標的欄位填入實際投入金額（元），系統自動加總")
         st.markdown("**投資標的配置（1～3個，比例合計需為100%）**")
-        cl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="cl_num")
+        if "cl_num" not in st.session_state: st.session_state["cl_num"] = 2
+        cl_num = st.radio("標的數量", [1, 2, 3], index=[1,2,3].index(st.session_state["cl_num"]), horizontal=True, key="cl_num")
         # ── session_state 初始化（只在第一次設預設值，切換模組後保留）──
         _cl_def = [("006208 富邦台50","006208","ETF/股票",50,600000),
                    ("安聯收益成長","B2abw8B","基金",50,600000),
                    ("統一奔騰基金","B090460","基金",0,0)]
-        
-        cl_targets = []
-        # --- 修正後的 Widget 渲染區 ---
-       # --- 修正後的 Module 6 渲染區（直接從 State 讀取） ---
+        for i in range(3):
+            for k,v in [(f"cl_t{i}",_cl_def[i][0]),(f"cl_tid{i}",_cl_def[i][1]),
+                        (f"cl_tt{i}",_cl_def[i][2]),(f"cl_p{i}",_cl_def[i][3]),
+                        (f"cl_inv{i}",_cl_def[i][4])]:
+                if k not in st.session_state: st.session_state[k] = v
         cl_targets = []
         for i in range(cl_num):
             c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
-            with c1: st.text_input(f"標的{i+1}名稱", key=f"cl_t{i}") 
-            with c2: st.text_input(f"代碼{i+1}", key=f"cl_tid{i}")
-            with c3: 
-                # 注意：這裡不設 index=...
-                st.selectbox(f"類型{i+1}", ["ETF/股票","基金"], key=f"cl_tt{i}", label_visibility="collapsed")
-            with c4: st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
-            with c5: st.number_input(f"投入（元）", min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
-            
-            # 從綁定的 session_state 讀取當前值進行後續計算
-            cl_targets.append((
-                st.session_state[f"cl_t{i}"],
-                st.session_state[f"cl_tid{i}"],
-                st.session_state[f"cl_tt{i}"],
-                st.session_state[f"cl_p{i}"],
-                st.session_state[f"cl_inv{i}"]
-            ))
+            with c1: t = st.text_input(f"標的{i+1}名稱", key=f"cl_t{i}")
+            with c2: tid = st.text_input(f"代碼{i+1}", key=f"cl_tid{i}")
+            with c3:
+                _o=["ETF/股票","基金"]; _v=st.session_state.get(f"cl_tt{i}","ETF/股票")
+                ttype = st.selectbox(f"類型{i+1}",_o,index=_o.index(_v) if _v in _o else 0,key=f"cl_tt{i}",label_visibility="collapsed")
+            with c4: p = st.number_input(f"比例{i+1}%", min_value=0, max_value=100, key=f"cl_p{i}", label_visibility="collapsed")
+            with c5: inv_i = st.number_input(f"投入（元）", min_value=0, step=100000, key=f"cl_inv{i}", label_visibility="collapsed")
+            cl_targets.append((t, tid, ttype, p, inv_i))
 
         total_cl_pct = sum(x[3] for x in cl_targets)
         inv_amount   = sum(x[4] for x in cl_targets)  # 總投資金額（各標的加總）
@@ -1813,35 +1783,44 @@ elif module == "🏠 房貸減壓分析":
     </div>
     """, unsafe_allow_html=True)
 
+    # ── session_state 初始化（只在第一次設預設值）──
+    for _k,_v in [("hl_bal",800),("hl_pay",32000),("hl_a_amt",800),("hl_a_rate",2.1),
+                  ("hl_a_yr",30),("hl_b_amt",0),("hl_b_rate",2.5),("hl_b_yr",5),("hl_b_total",30)]:
+        if _k not in st.session_state: st.session_state[_k] = _v
+
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**1. 原房貸狀況**")
-        orig_loan_bal = st.number_input("原房貸餘額（萬）", value=800, step=50, key="hl_bal")
-        orig_monthly  = st.number_input("原每月還款額（元）", value=32000, step=1000, key="hl_pay")
+        orig_loan_bal = st.number_input("原房貸餘額（萬）", step=50, key="hl_bal")
+        orig_monthly  = st.number_input("原每月還款額（元）", step=1000, key="hl_pay")
         st.markdown("**2. 轉增貸 / 新房貸方案**")
         st.markdown("**本利攤還型**")
         hc1, hc2, hc3 = st.columns(3)
-        with hc1: new_loan_a  = st.number_input("金額（萬）", value=800, step=50, key="hl_a_amt")
-        with hc2: new_rate_a  = st.number_input("利率（%）", value=2.1, step=0.1, key="hl_a_rate", format="%.1f")
-        with hc3: new_years_a = st.number_input("年期", value=30, step=1, key="hl_a_yr")
+        with hc1: new_loan_a  = st.number_input("金額（萬）", step=50, key="hl_a_amt")
+        with hc2: new_rate_a  = st.number_input("利率（%）", step=0.1, key="hl_a_rate", format="%.1f")
+        with hc3: new_years_a = st.number_input("年期", step=1, key="hl_a_yr")
         st.markdown("**理財型（寬限期）**")
         hd1, hd2, hd3, hd4 = st.columns(4)
-        with hd1: new_loan_b   = st.number_input("金額（萬）", value=0, step=50, key="hl_b_amt")
-        with hd2: new_rate_b   = st.number_input("利率（%）", value=2.5, step=0.1, key="hl_b_rate", format="%.1f")
-        with hd3: new_years_b  = st.number_input("寬限年期", value=5, step=1, min_value=1, key="hl_b_yr",
+        with hd1: new_loan_b   = st.number_input("金額（萬）", step=50, key="hl_b_amt")
+        with hd2: new_rate_b   = st.number_input("利率（%）", step=0.1, key="hl_b_rate", format="%.1f")
+        with hd3: new_years_b  = st.number_input("寬限年期", step=1, min_value=1, key="hl_b_yr",
                                                    help="只付利息的期間（年）")
-        with hd4: new_years_b_total = st.number_input("總年期", value=30, step=1, min_value=1, key="hl_b_total",
+        with hd4: new_years_b_total = st.number_input("總年期", step=1, min_value=1, key="hl_b_total",
                                                         help="含寬限期的總貸款年期（寬限期後剩餘年期才開始攤還本金）")
     with col2:
         st.markdown("**3. 投資設定**")
         st.caption("請在各標的欄位填入實際投入金額，系統自動加總")
         st.markdown("**投資標的（1～3個，比例合計需為100%）**")
-        hl_num = st.radio("標的數量", [1, 2, 3], index=1, horizontal=True, key="hl_num")
+        if "hl_num" not in st.session_state: st.session_state["hl_num"] = 2
+        hl_num = st.radio("標的數量", [1, 2, 3], index=[1,2,3].index(st.session_state["hl_num"]), horizontal=True, key="hl_num")
         # ── session_state 初始化（只在第一次設預設值，切換模組後保留）──
         _hl_def = [("006208 富邦台50","006208","ETF/股票",50),
                    ("安聯收益成長","B2abw8B","基金",50),
                    ("統一奔騰基金","B090460","基金",0)]
-        
+        for i in range(3):
+            for k,v in [(f"hl_t{i}",_hl_def[i][0]),(f"hl_tid{i}",_hl_def[i][1]),
+                        (f"hl_tt{i}",_hl_def[i][2]),(f"hl_p{i}",_hl_def[i][3])]:
+                if k not in st.session_state: st.session_state[k] = v
         hl_targets = []
         for i in range(hl_num):
             h1, h2, h3, h4 = st.columns([2, 1, 1, 1])
