@@ -474,22 +474,27 @@ def get_stock_data(stock_id, name):
         st.error(f"❌ {name}: {e}"); return None
 
 def calculate_dca(df_nav, monthly):
-    df = df_nav.copy().sort_values('date').set_index('date')
-    # 補齊每日資料（線性內插），解決鉅亨API季頻資料導致DCA變季投問題
+    df = df_nav.copy().sort_values('date')
+    # 去除重複日期（多頁拼接可能造成），保留最後一筆
+    df = df.groupby('date', as_index=False)['nav'].last()
+    df = df.set_index('date')
+    # 補齊每日資料（線性內插），確保每月都有資料點
     full_idx = pd.date_range(df.index.min(), df.index.max(), freq='D')
     df = df[['nav']].reindex(full_idx).interpolate(method='linear')
     df.index.name = 'date'
+    # resample 成每月末，取最後一個淨值
     mdf = df.resample('ME').last().dropna().reset_index()
     mdf.columns = ['date', 'nav']
     if mdf.empty: return pd.DataFrame(), 0, 0, 0
     inv, shares, rows = 0, 0, []
     for _, r in mdf.iterrows():
-        inv += monthly; shares += monthly/r['nav']
+        inv += monthly
+        shares += monthly / r['nav']
         val = shares * r['nav']
-        rows.append({'日期': r['date'], '累計投入成本': inv, '資產市值': val, '淨利潤': val-inv})
+        rows.append({'日期': r['date'], '累計投入成本': inv, '資產市值': val, '淨利潤': val - inv})
     res = pd.DataFrame(rows).set_index('日期')
     fv  = rows[-1]['資產市值']
-    return res, inv, fv, ((fv-inv)/inv)*100
+    return res, inv, fv, ((fv - inv) / inv) * 100
 
 
 # ═══════════════════════════════════════════════════════
