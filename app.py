@@ -666,7 +666,7 @@ if module == "📊 投資組合分析":
             er = st.slider("年化報酬率(%)", 0, 20, min(max(int(p_ret),0),20))
         if not dca_df.empty:
             pr_val = fv - tc
-            d1c,d2c,d3c,d4c = st.columns(12)
+            d1c,d2c,d3c,d4c = st.columns(4)
             d1c.metric("總投入", f"${tc:,.0f}")
             d2c.metric("期末價值", f"${fv:,.0f}")
             d3c.metric("盈虧", f"${pr_val:,.0f}", delta=f"{pr_val:,.0f}")
