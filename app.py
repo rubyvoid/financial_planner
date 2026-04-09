@@ -474,27 +474,49 @@ def get_stock_data(stock_id, name):
         st.error(f"❌ {name}: {e}"); return None
 
 def calculate_dca(df_nav, monthly):
+
+# 1. 深度複製並處理日期
     df = df_nav.copy().sort_values('date')
     # 去除重複日期（多頁拼接可能造成），保留最後一筆
     df = df.groupby('date', as_index=False)['nav'].last()
     df = df.set_index('date')
-    # 補齊每日資料（線性內插），確保每月都有資料點
+    
+    # 2. 補齊每日資料（線性內插），確保跨越的每個月都能抓到月底淨值
     full_idx = pd.date_range(df.index.min(), df.index.max(), freq='D')
     df = df[['nav']].reindex(full_idx).interpolate(method='linear')
     df.index.name = 'date'
-    # resample 成每月末，取最後一個淨值
+    
+    # 3. 採樣成「每月底」進行扣款模擬
     mdf = df.resample('ME').last().dropna().reset_index()
     mdf.columns = ['date', 'nav']
-    if mdf.empty: return pd.DataFrame(), 0, 0, 0
+    
+    if mdf.empty: 
+        return pd.DataFrame(), 0, 0, 0
+    
     inv, shares, rows = 0, 0, []
+    
+    # 4. 核心計算：確保每一期都投入正確的 'monthly' 金額
     for _, r in mdf.iterrows():
-        inv += monthly
+        # 累加本金 (例如 10000 -> 20000 -> 30000...)
+        inv += monthly 
+        # 計算買入股數 (本金 / 當時淨值)
         shares += monthly / r['nav']
+        # 計算當下市值
         val = shares * r['nav']
-        rows.append({'日期': r['date'], '累計投入成本': inv, '資產市值': val, '淨利潤': val - inv})
+        
+        rows.append({
+            '日期': r['date'], 
+            '累計投入成本': inv, 
+            '資產市值': val, 
+            '淨利潤': val - inv
+        })
+    
     res = pd.DataFrame(rows).set_index('日期')
     fv  = rows[-1]['資產市值']
-    return res, inv, fv, ((fv - inv) / inv) * 100
+    # 報酬率 = (期末價值 - 總投入本金) / 總投入本金
+    roi = ((fv - inv) / inv) * 100 if inv > 0 else 0
+    
+    return res, inv, fv, roi
 
 
 # ═══════════════════════════════════════════════════════
