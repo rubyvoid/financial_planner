@@ -607,7 +607,8 @@ if module == "📊 投資組合分析":
         f2_wn = f2_w/tw if tw>0 else 1/3
         f3_wn = f3_w_r/tw if tw>0 else 1/3
         st.markdown(f"<small>正規化：A {f1_wn:.0%} / B {f2_wn:.0%} / C {f3_wn:.0%}</small>", unsafe_allow_html=True)
-        monthly_amt = st.number_input("每月定期定額", value=10000, step=1000)
+        if "monthly_amt" not in st.session_state: st.session_state["monthly_amt"] = 10000
+        monthly_amt = st.number_input("每月定期定額", min_value=1000, step=1000, key="monthly_amt")
 
     if st.button("🚀 啟動分析", key="btn_inv"):
         st.session_state.run_investment = True
@@ -618,6 +619,10 @@ if module == "📊 投資組合分析":
             d1 = fetch[type_a](f1_id, f1_name)
             d2 = fetch[type_b](f2_id, f2_name)
             d3 = fetch[type_c](f3_id, f3_name)
+            # 把資料存進 session_state，讓調整 monthly_amt 時不需要重新抓資料
+            st.session_state["inv_d1"] = d1
+            st.session_state["inv_d2"] = d2
+            st.session_state["inv_d3"] = d3
         all_d = [x for x in [d1,d2,d3] if x]
         ws_r  = [f1_wn if d1 else 0, f2_wn if d2 else 0, f3_wn if d3 else 0]
         ws    = [w/sum(w2 for x,w2 in zip([d1,d2,d3],ws_r) if x) if x else 0
