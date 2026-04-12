@@ -474,49 +474,27 @@ def get_stock_data(stock_id, name):
         st.error(f"❌ {name}: {e}"); return None
 
 def calculate_dca(df_nav, monthly):
-
-# 1. 深度複製並處理日期
     df = df_nav.copy().sort_values('date')
     # 去除重複日期（多頁拼接可能造成），保留最後一筆
     df = df.groupby('date', as_index=False)['nav'].last()
     df = df.set_index('date')
-    
-    # 2. 補齊每日資料（線性內插），確保跨越的每個月都能抓到月底淨值
+    # 補齊每日資料（線性內插），確保每月都有資料點
     full_idx = pd.date_range(df.index.min(), df.index.max(), freq='D')
     df = df[['nav']].reindex(full_idx).interpolate(method='linear')
     df.index.name = 'date'
-    
-    # 3. 採樣成「每月底」進行扣款模擬
+    # resample 成每月末，取最後一個淨值
     mdf = df.resample('ME').last().dropna().reset_index()
     mdf.columns = ['date', 'nav']
-    
-    if mdf.empty: 
-        return pd.DataFrame(), 0, 0, 0
-    
+    if mdf.empty: return pd.DataFrame(), 0, 0, 0
     inv, shares, rows = 0, 0, []
-    
-    # 4. 核心計算：確保每一期都投入正確的 'monthly' 金額
     for _, r in mdf.iterrows():
-        # 累加本金 (例如 10000 -> 20000 -> 30000...)
-        inv += monthly 
-        # 計算買入股數 (本金 / 當時淨值)
+        inv += monthly
         shares += monthly / r['nav']
-        # 計算當下市值
         val = shares * r['nav']
-        
-        rows.append({
-            '日期': r['date'], 
-            '累計投入成本': inv, 
-            '資產市值': val, 
-            '淨利潤': val - inv
-        })
-    
+        rows.append({'日期': r['date'], '累計投入成本': inv, '資產市值': val, '淨利潤': val - inv})
     res = pd.DataFrame(rows).set_index('日期')
     fv  = rows[-1]['資產市值']
-    # 報酬率 = (期末價值 - 總投入本金) / 總投入本金
-    roi = ((fv - inv) / inv) * 100 if inv > 0 else 0
-    
-    return res, inv, fv, roi
+    return res, inv, fv, ((fv - inv) / inv) * 100
 
 
 # ═══════════════════════════════════════════════════════
@@ -629,8 +607,7 @@ if module == "📊 投資組合分析":
         f2_wn = f2_w/tw if tw>0 else 1/3
         f3_wn = f3_w_r/tw if tw>0 else 1/3
         st.markdown(f"<small>正規化：A {f1_wn:.0%} / B {f2_wn:.0%} / C {f3_wn:.0%}</small>", unsafe_allow_html=True)
-        if "monthly_amt" not in st.session_state: st.session_state["monthly_amt"] = 10000
-        monthly_amt = st.number_input("每月定期定額", min_value=1000, step=1000, key="monthly_amt")
+        monthly_amt = st.number_input("每月定期定額", value=10000, step=1000)
 
     if st.button("🚀 啟動分析", key="btn_inv"):
         st.session_state.run_investment = True
@@ -641,10 +618,6 @@ if module == "📊 投資組合分析":
             d1 = fetch[type_a](f1_id, f1_name)
             d2 = fetch[type_b](f2_id, f2_name)
             d3 = fetch[type_c](f3_id, f3_name)
-            # 把資料存進 session_state，讓調整 monthly_amt 時不需要重新抓資料
-            st.session_state["inv_d1"] = d1
-            st.session_state["inv_d2"] = d2
-            st.session_state["inv_d3"] = d3
         all_d = [x for x in [d1,d2,d3] if x]
         ws_r  = [f1_wn if d1 else 0, f2_wn if d2 else 0, f3_wn if d3 else 0]
         ws    = [w/sum(w2 for x,w2 in zip([d1,d2,d3],ws_r) if x) if x else 0
@@ -685,23 +658,43 @@ if module == "📊 投資組合分析":
             st.area_chart((dd - dd.expanding().max()) / dd.expanding().max(), color="#e84040")
 
         st.markdown('<p class="section-header">定期定額試算</p>', unsafe_allow_html=True)
-        pr = d1 or all_d[0]
-        dca_df, tc, fv, dca_roi = calculate_dca(pr['df'], monthly_amt)
         col1, col2 = st.columns([1,2])
         with col2:
-            fy = st.slider("預測年數", 1, 30, 10)
-            er = st.slider("年化報酬率(%)", 0, 20, min(max(int(p_ret),0),20))
-        if not dca_df.empty:
-            pr_val = fv - tc
-            d1c,d2c,d3c,d4c = st.columns(4)
-            d1c.metric("總投入", f"${tc:,.0f}")
-            d2c.metric("期末價值", f"${fv:,.0f}")
-            d3c.metric("盈虧", f"${pr_val:,.0f}", delta=f"{pr_val:,.0f}")
-            d4c.metric("DCA 報酬率", f"{dca_roi:.2f}%")
-            r = (er/100)/12; n = fy*12
-            fval = monthly_amt*(((1+r)**n-1)/r)*(1+r) if r>0 else monthly_amt*n
-            st.markdown(f"**🔮 {fy} 年後預期：${fval:,.0f}（年化 {er}%）**")
-            st.area_chart(dca_df[['累計投入成本','資產市值']], color=["#4f46e5","#7c3aed"])
+            fy = st.slider("試算年數", 1, 30, 10, key="dca_fy")
+            er = st.slider("年化報酬率(%)", 0, 20, min(max(int(p_ret),0),20), key="dca_er")
+
+        # 直接用 monthly_amt × 月數計算，不依賴歷史資料月數
+        n_months = fy * 12
+        tc = monthly_amt * n_months
+        r_m = (er / 100) / 12
+        if r_m > 0:
+            fv = monthly_amt * (((1 + r_m)**n_months - 1) / r_m) * (1 + r_m)
+        else:
+            fv = tc
+        pr_val = fv - tc
+        dca_roi = ((fv - tc) / tc * 100) if tc > 0 else 0
+
+        d1c, d2c, d3c, d4c = st.columns(4)
+        d1c.metric("每月定期定額", f"${monthly_amt:,.0f}")
+        d2c.metric(f"總投入（{fy}年×12月）", f"${tc:,.0f}")
+        d3c.metric(f"{fy}年後期末價值", f"${fv:,.0f}")
+        d4c.metric("預估報酬", f"${pr_val:,.0f}",
+                   delta=f"{dca_roi:.1f}%", delta_color="normal" if pr_val >= 0 else "inverse")
+        st.markdown(f"**🔮 {fy} 年後預期：${fv:,.0f}（年化 {er}%，每月投入 ${monthly_amt:,.0f}）**")
+
+        # 走勢圖：逐月累計
+        months = list(range(1, n_months + 1))
+        cost_curve = [monthly_amt * m for m in months]
+        if r_m > 0:
+            value_curve = [monthly_amt * (((1+r_m)**m - 1)/r_m) * (1+r_m) for m in months]
+        else:
+            value_curve = cost_curve[:]
+        import pandas as pd
+        df_chart = pd.DataFrame({
+            "累計投入成本": cost_curve,
+            "預估資產市值": value_curve
+        }, index=[f"第{m}月" for m in months])
+        st.area_chart(df_chart, color=["#4f46e5","#7c3aed"])
 
         st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         advice = get_investment_advice(
