@@ -690,10 +690,12 @@ if module == "📊 投資組合分析":
         else:
             value_curve = cost_curve[:]
         import pandas as pd
+        # 用整數月份作 index，避免字串排序問題（"第10月" < "第1月"）
         df_chart = pd.DataFrame({
             "累計投入成本": cost_curve,
             "預估資產市值": value_curve
-        }, index=[f"第{m}月" for m in months])
+        }, index=months)
+        df_chart.index.name = "月份"
         st.area_chart(df_chart, color=["#4f46e5","#7c3aed"])
 
         st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
