@@ -961,18 +961,78 @@ elif module == "🏖️ 退休金試算":
         r3.metric("退休金缺口", f"{gap/10000:,.0f} 萬", delta="需補強" if gap>0 else "✓ 足夠")
         r4.metric("每月需多存", f"${gap_monthly:,.0f}" if gap>0 else "已足夠")
 
-        # 資產累積走勢
-        st.markdown('<p class="section-header">資產累積走勢圖</p>', unsafe_allow_html=True)
-        years = list(range(0, years_to_retire+1))
-        asset_trend = []
-        for y in years:
+        # ── 完整人生資產走勢圖（累積期 + 提領期）──
+        st.markdown('<p class="section-header">完整人生資產走勢圖</p>', unsafe_allow_html=True)
+        st.caption(f"藍線：累積期（{current_age}~{retire_age}歲）｜橘線：退休提領期（{retire_age}~{life_expect}歲）")
+
+        total_years = life_expect - current_age
+        age_labels  = list(range(current_age, life_expect + 1))
+        acc_assets  = []   # 累積期資產
+        draw_assets = []   # 提領期資產
+
+        # ── 累積期：逐年計算 ──
+        for y in range(years_to_retire + 1):
             n_y = y * 12
-            fa = current_saving*10000*(1+expected_return/100)**y
-            fs = monthly_save*(((1+r_monthly)**n_y-1)/r_monthly)*(1+r_monthly) if r_monthly>0 and n_y>0 else monthly_save*n_y
-            asset_trend.append({"累積資產（萬）": (fa+fs)/10000})
-        df_trend = pd.DataFrame(asset_trend, index=years)
-        df_trend.index.name = "距今年數"
-        st.line_chart(df_trend)
+            fa = current_saving * 10000 * (1 + expected_return/100) ** y
+            fs = monthly_save * (((1+r_monthly)**n_y - 1)/r_monthly) * (1+r_monthly) if r_monthly > 0 and n_y > 0 else monthly_save * n_y
+            acc_assets.append(round((fa + fs) / 10000, 1))
+
+        # ── 提領期：從退休資產開始逐年扣除 ──
+        retire_asset = acc_assets[-1] * 10000   # 退休時總資產（元）
+        post_r       = expected_return / 100     # 退休後投資報酬率（假設保守降低）
+        money_out_age = None                      # 錢用完的年齡
+
+        draw_start = retire_asset
+        draw_assets.append(round(draw_start / 10000, 1))
+
+        for y in range(1, retire_years + 1):
+            age_now = retire_age + y
+            # 當年通膨調整後的月支出
+            monthly_need = future_monthly * ((1 + inflation_rate/100) ** y)
+            net_need     = max(monthly_need - labor_pension - other_income, 0)
+            # 年支出
+            annual_draw  = net_need * 12
+            # 年末資產 = 年初資產複利成長 - 全年提領
+            draw_start   = draw_start * (1 + post_r) - annual_draw
+            if draw_start <= 0:
+                draw_start = 0
+                if money_out_age is None:
+                    money_out_age = age_now
+            draw_assets.append(round(draw_start / 10000, 1))
+
+        # ── 組合 DataFrame（用年齡作 index，數字排序正確）──
+        acc_ages  = list(range(current_age, retire_age + 1))
+        draw_ages = list(range(retire_age,  life_expect + 1))
+
+        df_acc  = pd.DataFrame({"累積資產（萬）": acc_assets},  index=acc_ages)
+        df_draw = pd.DataFrame({"退休提領資產（萬）": draw_assets}, index=draw_ages)
+
+        # 合併成完整時間軸，用 NaN 分開讓兩條線顏色不同
+        df_full = pd.DataFrame(index=age_labels)
+        df_full["累積資產（萬）"]    = df_acc["累積資產（萬）"]
+        df_full["退休提領資產（萬）"] = df_draw["退休提領資產（萬）"]
+        df_full.index.name = "年齡"
+
+        st.line_chart(df_full, color=["#4f46e5", "#f97316"])
+
+        # ── 關鍵提示 ──
+        col_a, col_b, col_c = st.columns(3)
+        col_a.metric("退休時資產", f"{acc_assets[-1]:,.0f} 萬")
+        col_b.metric("退休後月支出（通膨調整）",
+                     f"${future_monthly:,.0f}",
+                     delta=f"較現在多 ${future_monthly - monthly_retire:,.0f}")
+        if money_out_age:
+            col_c.metric("預估錢用完年齡", f"{money_out_age} 歲",
+                         delta=f"距退休還有 {money_out_age - retire_age} 年",
+                         delta_color="inverse")
+        else:
+            col_c.metric("資產可撐至", f"{life_expect} 歲以上",
+                         delta="充足 ✓", delta_color="normal")
+
+        if money_out_age and money_out_age < life_expect:
+            st.warning(f"⚠️ 依目前規劃，資產預計在 **{money_out_age} 歲**用完，距預計壽命 {life_expect} 歲還有 {life_expect - money_out_age} 年缺口！建議每月多存 ${gap_monthly:,.0f} 補強。")
+        else:
+            st.success(f"✅ 依目前規劃，資產可支撐至 {life_expect} 歲，退休準備充足！")
 
         df_retire = pd.DataFrame({
             "項目": ["退休所需總額","已累積退休金（現值）","退休前預計累積","退休金缺口","每月需多儲蓄"],
