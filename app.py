@@ -1023,7 +1023,7 @@ elif module == "🏖️ 退休金試算":
                      delta=f"較現在多 ${future_monthly - monthly_retire:,.0f}")
         if money_out_age:
             col_c.metric("預估錢用完年齡", f"{money_out_age} 歲",
-                         delta=f"距退休還有 {money_out_age - retire_age} 年",
+                         delta=f"已退休 {money_out_age - retire_age} 年",
                          delta_color="inverse")
         else:
             col_c.metric("資產可撐至", f"{life_expect} 歲以上",
