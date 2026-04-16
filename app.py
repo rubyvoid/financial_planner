@@ -550,7 +550,7 @@ with st.sidebar:
         "🏠 房貸減壓分析",
     ])
     st.markdown("---")
-    client_name = st.text_input("客戶姓名", "王小明")
+    client_name = st.text_input("客戶姓名", " ")
     st.caption(f"製表日期：{time.strftime('%Y/%m/%d')}")
 
     # ── 免責聲明 ──
