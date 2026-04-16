@@ -969,8 +969,9 @@ elif module == "🏖️ 退休金試算":
             n_y = y * 12
             fa = current_saving*10000*(1+expected_return/100)**y
             fs = monthly_save*(((1+r_monthly)**n_y-1)/r_monthly)*(1+r_monthly) if r_monthly>0 and n_y>0 else monthly_save*n_y
-            asset_trend.append({"年份": f"+{y}年", "累積資產（萬）": (fa+fs)/10000})
-        df_trend = pd.DataFrame(asset_trend).set_index("年份")
+            asset_trend.append({"累積資產（萬）": (fa+fs)/10000})
+        df_trend = pd.DataFrame(asset_trend, index=years)
+        df_trend.index.name = "距今年數"
         st.line_chart(df_trend)
 
         df_retire = pd.DataFrame({
