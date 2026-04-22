@@ -545,8 +545,8 @@ with st.sidebar:
     _mods = [
         "📊 投資組合分析",
         "🏥 客戶財務健診",
-        "🛡️ 保險需求分析",
-        "🏖️ 退休金試算",
+        "🛡 保險需求分析",
+        "🏖 退休金試算",
         "🧾 稅務規劃",
         "💳 信貸投資套利",
         "🏠 房貸減壓分析",
@@ -819,8 +819,8 @@ elif module == "🏥 客戶財務健診":
 # ═══════════════════════════════════════════════════════
 # 模組三：保險需求分析
 # ═══════════════════════════════════════════════════════
-elif module == "🛡️ 保險需求分析":
-    st.subheader("🛡️ 保險需求分析")
+elif module == "🛡 保險需求分析":
+    st.subheader("🛡 保險需求分析")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -913,8 +913,8 @@ elif module == "🛡️ 保險需求分析":
 # ═══════════════════════════════════════════════════════
 # 模組四：退休金試算
 # ═══════════════════════════════════════════════════════
-elif module == "🏖️ 退休金試算":
-    st.subheader("🏖️ 退休金試算")
+elif module == "🏖 退休金試算":
+    st.subheader("🏖 退休金試算")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -1618,7 +1618,7 @@ elif module == "💳 信貸投資套利":
         
         # --- 以下為強化風險分析邏輯 ---
     if total_cl_pct == 100:
-        st.markdown('<p class="section-header">🛡️ 華爾街壓力測試 (Stress Test)</p>', unsafe_allow_html=True)
+        st.markdown('<p class="section-header">🛡 華爾街壓力測試 (Stress Test)</p>', unsafe_allow_html=True)
         
         # 1. 模擬黑天鵝事件 (單月跌幅 20%)
         black_swan_drop = 0.20
@@ -2227,7 +2227,7 @@ elif module == "🤖 AI 財富導航":
 
         # ── 三個 Tab ──
         st.markdown('<p class="section-header">AI 投資路徑建議</p>', unsafe_allow_html=True)
-        tab_cons, tab_bal, tab_agg = st.tabs(["🛡️ 穩健保本（保守）", "⚖️ 標準平衡（核心）", "🚀 積極成長（進取）"])
+        tab_cons, tab_bal, tab_agg = st.tabs(["🛡 穩健保本（保守）", "⚖️ 標準平衡（核心）", "🚀 積極成長（進取）"])
 
         with tab_cons:
             st.info(f"**穩健路徑：目標年化 4%**｜{years_to65} 年後預估 {fv_cons:,.0f} 萬")
