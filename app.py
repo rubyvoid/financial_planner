@@ -1609,6 +1609,49 @@ elif module == "💳 信貸投資套利":
         k3.metric(f"{loan_years}年後投資終值", f"${final_inv_val:,.0f}")
         k4.metric("到期淨利潤", f"${net_profit_total:,.0f}",
                   delta="獲利" if net_profit_total > 0 else "虧損")
+        
+        # --- 以下為強化風險分析邏輯 ---
+    if total_cl_pct == 100:
+        st.markdown('<p class="section-header">🛡️ 華爾街壓力測試 (Stress Test)</p>', unsafe_allow_html=True)
+        
+        # 1. 模擬黑天鵝事件 (單月跌幅 20%)
+        black_swan_drop = 0.20
+        asset_after_crash = inv_amount * (1 - black_swan_drop)
+        months_can_sustain = asset_after_crash / monthly_payment if monthly_payment > 0 else float('inf')
+
+        col_s1, col_s2, col_s3 = st.columns(3)
+        
+        with col_s1:
+            st.metric("黑天鵝後資產價值", f"${asset_after_crash:,.0f}", delta=f"-{black_swan_drop*100:.0%}", delta_color="inverse")
+            st.caption("模擬市場單月暴跌 20% 情境")
+
+        with col_s2:
+            status_color = "normal" if months_can_sustain > 12 else "inverse"
+            st.metric("崩盤後可撐月數", f"{months_can_sustain:.1f} 月", delta="安全" if months_can_sustain > 12 else "危險", delta_color=status_color)
+            st.caption("資產變現後可支撐還款的時間")
+
+        with col_s3:
+            # 2. 計算損益平衡點 (Breakeven)
+            if inv_amount > 0:
+                breakeven_cagr = ((total_payment / inv_amount) ** (1 / loan_years) - 1) * 100
+                st.metric("最低生存報酬率", f"{breakeven_cagr:.2f}%")
+                st.caption("低於此報酬率即為負套利")
+
+        # --- 風險評級矩陣 ---
+        st.markdown("**風險矩陣評等 (Risk Matrix)**")
+        
+        # 建立風險分數
+        risk_score = 0
+        if arb_spread < 2: risk_score += 3  # 利差過小
+        if net_monthly_flow < 0: risk_score += 2 # 現金流需自補
+        if loan_years > 7: risk_score += 1 # 年期過長增加不確定性
+
+        if risk_score >= 5:
+            st.error("🔥 高風險：這是一場豪賭。利差不足且現金流吃緊，建議降低貸款金額或更換高勝率標的。")
+        elif risk_score >= 3:
+            st.warning("🟡 中風險：具備獲利潛力，但抗壓性不足。務必準備至少 6 個月的還款預備金。")
+        else:
+            st.success("🟢 穩健套利：利差充足且現金流管理良好，符合華爾街穩健增長模型。")
 
         # ── 走勢圖 ──
         st.markdown('<p class="section-header">資產 vs 負債走勢</p>', unsafe_allow_html=True)
