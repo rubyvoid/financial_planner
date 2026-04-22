@@ -540,7 +540,9 @@ def get_cagr(ticker, ticker_type, dummy_name="標的"):
 with st.sidebar:
     st.markdown("## 💼 財務規劃系統")
     st.markdown("---")
-    module = st.radio("選擇模組", [
+    if "module" not in st.session_state:
+        st.session_state["module"] = "📊 投資組合分析"
+    _mods = [
         "📊 投資組合分析",
         "🏥 客戶財務健診",
         "🛡️ 保險需求分析",
@@ -548,8 +550,11 @@ with st.sidebar:
         "🧾 稅務規劃",
         "💳 信貸投資套利",
         "🏠 房貸減壓分析",
-        "🤖 AI 財富導航":,
-    ])
+        "🤖 AI 財富導航",
+    ]
+    module = st.radio("選擇模組", _mods,
+        index=_mods.index(st.session_state["module"]) if st.session_state["module"] in _mods else 0,
+        key="module")
     st.markdown("---")
     client_name = st.text_input("客戶姓名", " ")
     st.caption(f"製表日期：{time.strftime('%Y/%m/%d')}")
@@ -2132,7 +2137,6 @@ elif module == "🏠 房貸減壓分析":
         st.dataframe(df_house, use_container_width=True, hide_index=True)
 
         advice_house = f"""【房貸減壓套利分析報告】
-        
 
 一、策略概述
 原房貸月付 ${orig_monthly:,} 元。
@@ -2167,3 +2171,153 @@ elif module == "🏠 房貸減壓分析":
         st.download_button("📥 下載 PDF 報告", pdf_bytes_h,
                            f"房貸減壓_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
 
+
+# ═══════════════════════════════════════════════════════
+# 模組八：AI 財富導航
+# ═══════════════════════════════════════════════════════
+elif module == "🤖 AI 財富導航":
+    st.subheader("🤖 AI 財富導航：資產負債深度診斷")
+
+    with st.expander("📝 第一步：輸入財務現況", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            c_cash  = st.number_input("流動資金（萬）",       value=100, step=10,  key="ai_cash")
+            c_stock = st.number_input("現有投資資產（萬）",   value=200, step=10,  key="ai_stock")
+            c_estate= st.number_input("不動產估值（萬）",     value=0,   step=100, key="ai_estate")
+        with col2:
+            c_debt  = st.number_input("當前總負債（萬）",     value=50,  step=10,  key="ai_debt")
+            c_save  = st.number_input("每月可新增投入（元）", value=20000, step=1000, key="ai_save")
+            c_age   = st.number_input("目前年齡",             value=35,  step=1,   key="ai_age",
+                                      min_value=20, max_value=70)
+
+    if st.button("🚀 執行 AI 診斷與路徑推論", key="btn_ai_wealth"):
+        total_asset = c_cash + c_stock + c_estate
+        net_worth   = total_asset - c_debt
+        debt_ratio  = (c_debt / total_asset * 100) if total_asset > 0 else 0
+        years_to65  = max(65 - c_age, 1)
+
+        # ── 核心 KPI ──
+        st.markdown('<p class="section-header">AI 財務診斷報告</p>', unsafe_allow_html=True)
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric("淨資產總額",   f"{net_worth:,.0f} 萬")
+        d2.metric("負債比率",     f"{debt_ratio:.1f}%",
+                  delta="健康" if debt_ratio < 40 else "偏高",
+                  delta_color="normal" if debt_ratio < 40 else "inverse")
+        d3.metric("月投資能力",   f"${c_save:,.0f}")
+        d4.metric("距退休年數",   f"{years_to65} 年")
+
+        # ── 三條路徑的計算 ──
+        def calc_path(rate, monthly, years, initial_stock):
+            r = rate / 100 / 12
+            n = years * 12
+            fv_stock   = initial_stock * 10000 * (1 + rate/100) ** years
+            fv_monthly = monthly * (((1+r)**n - 1)/r) * (1+r) if r > 0 else monthly * n
+            return round((fv_stock + fv_monthly) / 10000, 0)
+
+        fv_cons = calc_path(4.0, c_save, years_to65, c_stock)
+        fv_bal  = calc_path(8.0, c_save, years_to65, c_stock)
+        fv_agg  = calc_path(12.0, c_save, years_to65, c_stock)
+
+        # ── 路徑比較 KPI ──
+        st.markdown('<p class="section-header">三條路徑：{} 年後資產預估（不含不動產）</p>'.format(years_to65), unsafe_allow_html=True)
+        p1, p2, p3 = st.columns(3)
+        p1.metric("穩健保本（年化 4%）", f"{fv_cons:,.0f} 萬", delta=f"+{fv_cons-c_stock:,.0f} 萬")
+        p2.metric("標準平衡（年化 8%）", f"{fv_bal:,.0f} 萬",  delta=f"+{fv_bal-c_stock:,.0f} 萬")
+        p3.metric("積極成長（年化 12%）",f"{fv_agg:,.0f} 萬",  delta=f"+{fv_agg-c_stock:,.0f} 萬")
+
+        # ── 三個 Tab ──
+        st.markdown('<p class="section-header">AI 投資路徑建議</p>', unsafe_allow_html=True)
+        tab_cons, tab_bal, tab_agg = st.tabs(["🛡️ 穩健保本（保守）", "⚖️ 標準平衡（核心）", "🚀 積極成長（進取）"])
+
+        with tab_cons:
+            st.info(f"**穩健路徑：目標年化 4%**｜{years_to65} 年後預估 {fv_cons:,.0f} 萬")
+            df_cons = pd.DataFrame({
+                "標的類別":  ["短期債券 / 定存",   "高股息 ETF",       "貨幣型基金"],
+                "配置比例":  ["40%",               "40%",              "20%"],
+                "預期波動":  ["極低",              "低",               "極低"],
+                "建議標的":  ["台灣銀行定存",       "00713 / 00878",   "貨幣市場基金"],
+                "適合理由":  ["本金安全、穩定利息", "穩定配息現金流",   "隨時可動用緊急備用"]
+            })
+            st.table(df_cons)
+            st.warning("⚠️ 穩健路徑報酬率偏低，長期可能跑輸通膨（2~3%）。適合距退休 5 年內、風險承受度低的客戶。")
+
+        with tab_bal:
+            st.success(f"**平衡路徑：目標年化 8%**｜{years_to65} 年後預估 {fv_bal:,.0f} 萬")
+            df_bal = pd.DataFrame({
+                "標的類別":  ["全球市值型 ETF",     "科技成長型 ETF",   "高股息 / 美債"],
+                "配置比例":  ["50%",               "30%",              "20%"],
+                "預期波動":  ["中",                "高",               "低"],
+                "建議標的":  ["006208 / VTI",       "00881 / QQQ",      "00919 / TLT"],
+                "適合理由":  ["長期追蹤全球市值",   "受惠 AI 科技浪潮", "降低整體波動"]
+            })
+            st.table(df_bal)
+            st.warning("⚠️ 為達成 8% 目標，此組合在極端情況（如 2022 年）可能出現 **-15%~-20%** 帳面波動，但拉長 5 年以上勝率高達 92%。")
+
+        with tab_agg:
+            st.error(f"**積極路徑：目標年化 12%**｜{years_to65} 年後預估 {fv_agg:,.0f} 萬")
+            df_agg = pd.DataFrame({
+                "標的類別":  ["科技 / 成長股 ETF",  "個股集中持有",     "高收益債 / REITs"],
+                "配置比例":  ["60%",               "25%",              "15%"],
+                "預期波動":  ["高",                "極高",             "中高"],
+                "建議標的":  ["00757 / ARKK",       "台積電 / NVDA",    "00929 / 高收益債"],
+                "適合理由":  ["科技主題高成長",     "高集中度高報酬",   "現金流補充波動"]
+            })
+            st.table(df_agg)
+            st.error("⚠️ 積極路徑在空頭市場可能出現 **-30%~-50%** 的帳面損失，需有強大心理素質。僅適合距退休 15 年以上、月收入穩定的積極型客戶。")
+
+        # ── 走勢比較圖 ──
+        st.markdown('<p class="section-header">三條路徑資產成長比較</p>', unsafe_allow_html=True)
+        yrs = list(range(0, years_to65 + 1))
+        rows_cons, rows_bal, rows_agg = [], [], []
+        for y in yrs:
+            r_c = 4.0/100/12; r_b = 8.0/100/12; r_a = 12.0/100/12
+            n_y = y * 12
+            def fv_y(r, init):
+                fv_i = init * 10000 * (1 + r*12) ** y
+                fv_s = c_save * (((1+r)**n_y - 1)/r) * (1+r) if r > 0 and n_y > 0 else c_save * n_y
+                return round((fv_i + fv_s) / 10000, 1)
+            rows_cons.append(fv_y(r_c, c_stock))
+            rows_bal.append(fv_y(r_b, c_stock))
+            rows_agg.append(fv_y(r_a, c_stock))
+
+        df_compare = pd.DataFrame({
+            "穩健保本（4%）":  rows_cons,
+            "標準平衡（8%）":  rows_bal,
+            "積極成長（12%）": rows_agg,
+        }, index=yrs)
+        df_compare.index.name = "距今年數"
+        st.line_chart(df_compare, color=["#22c55e", "#4f46e5", "#ef4444"])
+        st.caption("Y 軸單位：萬元 ｜ 假設每月持續投入 $" + f"{c_save:,}" + "，投資資產以設定報酬率複利成長")
+
+        # ── AI 診斷建議文字 ──
+        st.markdown('<p class="section-header">AI 綜合建議</p>', unsafe_allow_html=True)
+        advice_ai = f"""【AI 財富導航診斷報告】
+
+一、財務健康度評估
+淨資產 {net_worth:,} 萬，負債比率 {debt_ratio:.1f}%（{"健康，財務結構穩固" if debt_ratio < 40 else "偏高，建議優先降低負債"}）。
+每月可投入 ${c_save:,}，距退休 {years_to65} 年，時間資本{"充裕，複利效果顯著" if years_to65 > 15 else "有限，建議提高月投入金額"}。
+
+二、路徑推薦
+{"建議以標準平衡路徑（8%）為主，兼顧成長與穩定。" if debt_ratio < 40 and years_to65 > 10 else "建議以穩健保本路徑為主，先降低負債再積極投資。"}
+{years_to65} 年後預估：保守 {fv_cons:,} 萬 ｜ 平衡 {fv_bal:,} 萬 ｜ 積極 {fv_agg:,} 萬
+
+三、行動建議
+• 立即行動：建立每月自動扣款投資習慣，金額 ${c_save:,}
+• {"優先還款：負債比率偏高，建議每月多還 $5,000~10,000" if debt_ratio > 40 else "持續投資：負債比率健康，可積極布局"}
+• 每年審視：報酬率、通膨率、投資組合需定期再平衡
+
+四、免責聲明
+本試算僅供參考，實際報酬率受市場影響，過去績效不代表未來表現。"""
+
+        render_ai(advice_ai, "AI 財富導航 · 綜合診斷")
+
+        pdf_bytes_ai = build_pdf(client_name, [
+            {"title": "AI 財務診斷", "content": None, "table": pd.DataFrame({
+                "項目": ["淨資產", "負債比率", "月投資能力", "保守路徑終值", "平衡路徑終值", "積極路徑終值"],
+                "數值": [f"{net_worth:,} 萬", f"{debt_ratio:.1f}%", f"${c_save:,}",
+                          f"{fv_cons:,} 萬", f"{fv_bal:,} 萬", f"{fv_agg:,} 萬"]
+            })},
+            {"title": "AI 綜合建議", "content": strip_md(advice_ai), "table": None},
+        ])
+        st.download_button("📥 下載 AI 診斷 PDF", pdf_bytes_ai,
+                           f"AI財富導航_{client_name}_{time.strftime('%Y%m%d')}.pdf", "application/pdf")
