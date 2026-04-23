@@ -550,7 +550,7 @@ with st.sidebar:
         "🧾 稅務規劃",
         "💳 信貸投資套利",
         "🏠 房貸減壓分析",
-        "🤖 AI 財富導航",
+        "💎 AI 財富導航",
     ]
     module = st.radio("選擇模組", _mods,
         index=_mods.index(st.session_state["module"]) if st.session_state["module"] in _mods else 0,
@@ -2175,36 +2175,96 @@ elif module == "🏠 房貸減壓分析":
 # ═══════════════════════════════════════════════════════
 # 模組八：AI 財富導航
 # ═══════════════════════════════════════════════════════
-elif module == "🤖 AI 財富導航":
-    st.subheader("🤖 AI 財富導航：資產負債深度診斷")
+elif module == "💎 AI 財富導航":
+    # ── 頁首 Hero Banner ──
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4338ca 100%);
+                border-radius:16px; padding:28px 32px; margin-bottom:24px;">
+        <div style="display:flex; align-items:center; gap:16px;">
+            <div style="font-size:48px; line-height:1;">💎</div>
+            <div>
+                <h2 style="color:#fff; margin:0; font-size:1.6rem; font-weight:700; letter-spacing:-0.5px;">
+                    AI 財富導航
+                </h2>
+                <p style="color:#a5b4fc; margin:4px 0 0; font-size:0.95rem;">
+                    資產負債深度診斷 · 三條路徑規劃 · 退休終值試算
+                </p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    with st.expander("📝 第一步：輸入財務現況", expanded=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            c_cash  = st.number_input("流動資金（萬）",       value=100, step=10,  key="ai_cash")
-            c_stock = st.number_input("現有投資資產（萬）",   value=200, step=10,  key="ai_stock")
-            c_estate= st.number_input("不動產估值（萬）",     value=0,   step=100, key="ai_estate")
-        with col2:
-            c_debt  = st.number_input("當前總負債（萬）",     value=50,  step=10,  key="ai_debt")
-            c_save  = st.number_input("每月可新增投入（元）", value=20000, step=1000, key="ai_save")
-            c_age   = st.number_input("目前年齡",             value=35,  step=1,   key="ai_age",
-                                      min_value=20, max_value=70)
+    # ── 輸入區（精美卡片樣式）──
+    st.markdown("""
+    <div style="background:#f8faff; border:1.5px solid #e0e7ff;
+                border-radius:12px; padding:20px 24px; margin-bottom:8px;">
+        <div style="font-size:0.85rem; font-weight:600; color:#4338ca;
+                    letter-spacing:1px; text-transform:uppercase; margin-bottom:12px;">
+            STEP 1 · 輸入財務現況
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    if st.button("🚀 執行 AI 診斷與路徑推論", key="btn_ai_wealth"):
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("**💰 資產面**")
+        c_cash  = st.number_input("流動資金（萬）",     value=100, step=10,   key="ai_cash")
+        c_stock = st.number_input("投資資產（萬）",     value=200, step=10,   key="ai_stock")
+        c_estate= st.number_input("不動產估值（萬）",   value=0,   step=100,  key="ai_estate")
+    with col2:
+        st.markdown("**📊 負債面**")
+        c_debt  = st.number_input("當前總負債（萬）",   value=50,  step=10,   key="ai_debt")
+        c_save  = st.number_input("每月可投入（元）",   value=20000, step=1000, key="ai_save")
+    with col3:
+        st.markdown("**👤 個人資訊**")
+        c_age   = st.number_input("目前年齡",           value=35,  step=1,    key="ai_age",
+                                  min_value=20, max_value=70)
+        c_retire= st.number_input("目標退休年齡",       value=65,  step=1,    key="ai_retire",
+                                  min_value=45, max_value=75)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    btn_col1, btn_col2, btn_col3 = st.columns([1,2,1])
+    with btn_col2:
+        run_ai = st.button("💎 執行 AI 財富診斷", key="btn_ai_wealth", use_container_width=True)
+
+    if run_ai:
         total_asset = c_cash + c_stock + c_estate
         net_worth   = total_asset - c_debt
         debt_ratio  = (c_debt / total_asset * 100) if total_asset > 0 else 0
-        years_to65  = max(65 - c_age, 1)
+        years_to65  = max(c_retire - c_age, 1)
 
         # ── 核心 KPI ──
-        st.markdown('<p class="section-header">AI 財務診斷報告</p>', unsafe_allow_html=True)
-        d1, d2, d3, d4 = st.columns(4)
-        d1.metric("淨資產總額",   f"{net_worth:,.0f} 萬")
-        d2.metric("負債比率",     f"{debt_ratio:.1f}%",
-                  delta="健康" if debt_ratio < 40 else "偏高",
-                  delta_color="normal" if debt_ratio < 40 else "inverse")
-        d3.metric("月投資能力",   f"${c_save:,.0f}")
-        d4.metric("距退休年數",   f"{years_to65} 年")
+        health_color = "#22c55e" if debt_ratio < 40 else "#ef4444"
+        health_text  = "財務健康" if debt_ratio < 40 else "負債偏高"
+        st.markdown(f"""
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0;">
+            <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;
+                        border-radius:12px;padding:16px 18px;text-align:center;">
+                <div style="font-size:0.75rem;color:#16a34a;font-weight:600;letter-spacing:1px;text-transform:uppercase;">淨資產</div>
+                <div style="font-size:1.6rem;font-weight:700;color:#15803d;margin:4px 0;">{net_worth:,.0f} 萬</div>
+                <div style="font-size:0.75rem;color:#4ade80;">總資產 {total_asset:,.0f} 萬</div>
+            </div>
+            <div style="background:linear-gradient(135deg,{'#f0fdf4,#dcfce7' if debt_ratio < 40 else '#fef2f2,#fee2e2'});
+                        border:1.5px solid {'#86efac' if debt_ratio < 40 else '#fca5a5'};
+                        border-radius:12px;padding:16px 18px;text-align:center;">
+                <div style="font-size:0.75rem;color:{health_color};font-weight:600;letter-spacing:1px;text-transform:uppercase;">負債比率</div>
+                <div style="font-size:1.6rem;font-weight:700;color:{health_color};margin:4px 0;">{debt_ratio:.1f}%</div>
+                <div style="font-size:0.75rem;color:{health_color};">{health_text}</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;
+                        border-radius:12px;padding:16px 18px;text-align:center;">
+                <div style="font-size:0.75rem;color:#1d4ed8;font-weight:600;letter-spacing:1px;text-transform:uppercase;">月投資能力</div>
+                <div style="font-size:1.6rem;font-weight:700;color:#1e40af;margin:4px 0;">${c_save:,.0f}</div>
+                <div style="font-size:0.75rem;color:#60a5fa;">每月可投入</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#faf5ff,#ede9fe);border:1.5px solid #c4b5fd;
+                        border-radius:12px;padding:16px 18px;text-align:center;">
+                <div style="font-size:0.75rem;color:#7c3aed;font-weight:600;letter-spacing:1px;text-transform:uppercase;">距退休</div>
+                <div style="font-size:1.6rem;font-weight:700;color:#6d28d9;margin:4px 0;">{years_to65} 年</div>
+                <div style="font-size:0.75rem;color:#a78bfa;">目標 {c_retire} 歲退休</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # ── 三條路徑的計算 ──
         def calc_path(rate, monthly, years, initial_stock):
@@ -2219,15 +2279,44 @@ elif module == "🤖 AI 財富導航":
         fv_agg  = calc_path(12.0, c_save, years_to65, c_stock)
 
         # ── 路徑比較 KPI ──
-        st.markdown('<p class="section-header">三條路徑：{} 年後資產預估（不含不動產）</p>'.format(years_to65), unsafe_allow_html=True)
-        p1, p2, p3 = st.columns(3)
-        p1.metric("穩健保本（年化 4%）", f"{fv_cons:,.0f} 萬", delta=f"+{fv_cons-c_stock:,.0f} 萬")
-        p2.metric("標準平衡（年化 8%）", f"{fv_bal:,.0f} 萬",  delta=f"+{fv_bal-c_stock:,.0f} 萬")
-        p3.metric("積極成長（年化 12%）",f"{fv_agg:,.0f} 萬",  delta=f"+{fv_agg-c_stock:,.0f} 萬")
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:12px;
+                    padding:16px 24px;margin:20px 0 12px;color:#e0e7ff;">
+            <span style="font-size:0.8rem;letter-spacing:2px;text-transform:uppercase;opacity:0.7;">
+                STEP 2 · 三條路徑比較
+            </span>
+            <span style="margin-left:12px;font-size:1rem;font-weight:600;">
+                {years_to65} 年後資產預估（每月投入 ${c_save:,}）
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+            <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:2px solid #86efac;
+                        border-radius:12px;padding:18px 20px;text-align:center;">
+                <div style="font-size:0.8rem;color:#16a34a;font-weight:700;letter-spacing:1px;">🛡 穩健保本 · 4%</div>
+                <div style="font-size:2rem;font-weight:700;color:#15803d;margin:8px 0;">{fv_cons:,.0f} <span style="font-size:1rem;">萬</span></div>
+                <div style="font-size:0.8rem;color:#4ade80;">較現在多 +{fv_cons-c_stock:,.0f} 萬</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:2px solid #60a5fa;
+                        border-radius:12px;padding:18px 20px;text-align:center;
+                        box-shadow:0 4px 20px rgba(79,70,229,0.15);">
+                <div style="font-size:0.8rem;color:#1d4ed8;font-weight:700;letter-spacing:1px;">⚖ 標準平衡 · 8%</div>
+                <div style="font-size:2rem;font-weight:700;color:#1e40af;margin:8px 0;">{fv_bal:,.0f} <span style="font-size:1rem;">萬</span></div>
+                <div style="font-size:0.8rem;color:#60a5fa;">較現在多 +{fv_bal-c_stock:,.0f} 萬</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:2px solid #fb923c;
+                        border-radius:12px;padding:18px 20px;text-align:center;">
+                <div style="font-size:0.8rem;color:#c2410c;font-weight:700;letter-spacing:1px;">🚀 積極成長 · 12%</div>
+                <div style="font-size:2rem;font-weight:700;color:#9a3412;margin:8px 0;">{fv_agg:,.0f} <span style="font-size:1rem;">萬</span></div>
+                <div style="font-size:0.8rem;color:#fb923c;">較現在多 +{fv_agg-c_stock:,.0f} 萬</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # ── 三個 Tab ──
         st.markdown('<p class="section-header">AI 投資路徑建議</p>', unsafe_allow_html=True)
-        tab_cons, tab_bal, tab_agg = st.tabs(["🛡️ 穩健保本（保守）", "⚖️ 標準平衡（核心）", "🚀 積極成長（進取）"])
+        tab_cons, tab_bal, tab_agg = st.tabs(["🛡 穩健保本（保守）", "⚖ 標準平衡（核心）", "🚀 積極成長（進取）"])
 
         with tab_cons:
             st.info(f"**穩健路徑：目標年化 4%**｜{years_to65} 年後預估 {fv_cons:,.0f} 萬")
