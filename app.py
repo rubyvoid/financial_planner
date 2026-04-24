@@ -951,10 +951,6 @@ elif module == "🛡️ 保險需求分析":
         })
         st.dataframe(df_ins, use_container_width=True, hide_index=True)
 
-        st.markdown('<div class="module-card">', unsafe_allow_html=True)
-        st.table(df_ins) # 使用 table 取代 dataframe 更具正式感
-        st.markdown('</div>', unsafe_allow_html=True)
-
         section_card("系統分析報告")
         advice_i = get_insurance_advice(age, life_gap, medical_gap, disable_gap, accident_gap)
         render_ai(advice_i, "系統分析 · 保障需求")
