@@ -904,9 +904,7 @@ elif module == "🛡️ 保險需求分析":
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown('<div class="module-card">', unsafe_allow_html=True)
-        st.table(df_ins) # 使用 table 取代 dataframe 更具正式感
-        st.markdown('</div>', unsafe_allow_html=True)
+       
 
         df_ins = pd.DataFrame({
             "險種": ["壽險","醫療實支實付","失能險（月）","意外險"],
@@ -927,6 +925,10 @@ elif module == "🛡️ 保險需求分析":
             "狀態": ["需補強" if x>0 else "足夠" for x in [life_gap, medical_gap, disable_gap, accident_gap]]
         })
         st.dataframe(df_ins, use_container_width=True, hide_index=True)
+
+        st.markdown('<div class="module-card">', unsafe_allow_html=True)
+        st.table(df_ins) # 使用 table 取代 dataframe 更具正式感
+        st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         advice_i = get_insurance_advice(age, life_gap, medical_gap, disable_gap, accident_gap)
