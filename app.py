@@ -872,12 +872,41 @@ elif module == "🛡️ 保險需求分析":
         accident_needed = annual_income * 10
         accident_gap    = max(accident_needed - current_accident, 0)
 
-        st.markdown('<p class="section-header">保障缺口分析</p>', unsafe_allow_html=True)
-        g1,g2,g3,g4 = st.columns(4)
-        g1.metric("壽險缺口", f"{life_gap} 萬", delta="需補強" if life_gap>0 else "✓ 足夠")
-        g2.metric("實支實付缺口", f"{medical_gap} 萬", delta="需補強" if medical_gap>0 else "✓ 足夠")
-        g3.metric("失能月給付缺口", f"${disable_gap:,}", delta="需補強" if disable_gap>0 else "✓ 足夠")
-        g4.metric("意外險缺口", f"{accident_gap} 萬", delta="需補強" if accident_gap>0 else "✓ 足夠")
+        st.markdown('<p class="section-header">🔍 保障缺口深度診斷</p>', unsafe_allow_html=True)
+        
+        # ── 漸層 KPI 卡片 ──
+        st.markdown(f"""
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0;">
+            <div style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1.5px solid #fca5a5;
+                        border-radius:12px;padding:16px 18px;text-align:center;">
+                <div style="font-size:0.75rem;color:#b91c1c;font-weight:600;letter-spacing:1px;text-transform:uppercase;">壽險缺口</div>
+                <div style="font-size:1.6rem;font-weight:700;color:#991b1b;margin:4px 0;">{life_gap} 萬</div>
+                <div style="font-size:0.75rem;color:#ef4444;">{"需補強" if life_gap > 0 else "已足夠"}</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;
+                        border-radius:12px;padding:16px 18px;text-align:center;">
+                <div style="font-size:0.75rem;color:#1d4ed8;font-weight:600;letter-spacing:1px;text-transform:uppercase;">醫療實支缺口</div>
+                <div style="font-size:1.6rem;font-weight:700;color:#1e40af;margin:4px 0;">{medical_gap} 萬</div>
+                <div style="font-size:0.75rem;color:#60a5fa;">醫療保障</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#faf5ff,#ede9fe);border:1.5px solid #c4b5fd;
+                        border-radius:12px;padding:16px 18px;text-align:center;">
+                <div style="font-size:0.75rem;color:#7c3aed;font-weight:600;letter-spacing:1px;text-transform:uppercase;">失能月領缺口</div>
+                <div style="font-size:1.6rem;font-weight:700;color:#6d28d9;margin:4px 0;">${disable_gap:,}</div>
+                <div style="font-size:0.75rem;color:#a78bfa;">長期照護</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fb923c;
+                        border-radius:12px;padding:16px 18px;text-align:center;">
+                <div style="font-size:0.75rem;color:#c2410c;font-weight:600;letter-spacing:1px;text-transform:uppercase;">意外險缺口</div>
+                <div style="font-size:1.6rem;font-weight:700;color:#9a3412;margin:4px 0;">{accident_gap} 萬</div>
+                <div style="font-size:0.75rem;color:#fb923c;">突發風險</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="module-card">', unsafe_allow_html=True)
+        st.table(df_ins) # 使用 table 取代 dataframe 更具正式感
+        st.markdown('</div>', unsafe_allow_html=True)
 
         df_ins = pd.DataFrame({
             "險種": ["壽險","醫療實支實付","失能險（月）","意外險"],
