@@ -302,29 +302,6 @@ def get_tax_advice(total_gross, final_tax, eff_rate, use_itemized, dividend_inco
 五、免責聲明
 本試算依現行稅法為基準，實際應納稅額請以國稅局核定為準，重大稅務決策建議諮詢專業會計師。"""
 
-def hero_banner(emoji, title, subtitle, grad_a="#1e1b4b", grad_b="#312e81", grad_c="#4338ca", sub_color="#a5b4fc"):
-    st.markdown(f"""
-    <div style="background:linear-gradient(135deg,{grad_a} 0%,{grad_b} 50%,{grad_c} 100%);
-                border-radius:16px;padding:24px 32px;margin-bottom:20px;">
-        <div style="display:flex;align-items:center;gap:16px;">
-            <div style="font-size:44px;line-height:1;">{emoji}</div>
-            <div>
-                <h2 style="color:#fff;margin:0;font-size:1.5rem;font-weight:700;">{title}</h2>
-                <p style="color:{sub_color};margin:4px 0 0;font-size:0.9rem;">{subtitle}</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-def section_card(title, color_left="#4f46e5"):
-    st.markdown(f"""
-    <div style="border-left:4px solid {color_left};padding:6px 14px;margin:18px 0 10px;
-                background:linear-gradient(90deg,rgba(79,70,229,0.06) 0%,transparent 100%);
-                border-radius:0 8px 8px 0;">
-        <span style="font-size:0.95rem;font-weight:600;color:#1e1b4b;">{title}</span>
-    </div>
-    """, unsafe_allow_html=True)
-
 def render_ai(text, badge="系統分析報告"):
     st.markdown(f"""
     <div class="ai-card">
@@ -688,18 +665,18 @@ if module == "📊 投資組合分析":
         p_div = sum(x['累積配息']*w   for x,w in zip([d1,d2,d3],ws) if x)
         rr    = "RR5" if p_mdd<-25 else "RR4" if p_mdd<-15 else "RR3" if p_mdd<-8 else "RR2"
 
-        section_card("組合關鍵指標")
+        st.markdown('<p class="section-header">組合關鍵指標</p>', unsafe_allow_html=True)
         c1,c2,c3,c4 = st.columns(4)
         c1.metric("加權總報酬", f"{p_ret:.2f}%")
         c2.metric("加權最大回撤", f"{p_mdd:.2f}%")
         c3.metric("加權累積配息", f"{p_div:.2f}")
         c4.metric("建議風險等級", rr)
 
-        section_card("標的對比")
+        st.markdown('<p class="section-header">標的對比</p>', unsafe_allow_html=True)
         df_cmp = pd.DataFrame([x for x in [d1,d2,d3] if x]).drop(columns=['df'])
         st.dataframe(df_cmp, use_container_width=True, hide_index=True)
 
-        section_card("歷史走勢（正規化）")
+        st.markdown('<p class="section-header">歷史走勢（正規化）</p>', unsafe_allow_html=True)
         nf = {}
         for x in all_d:
             s = x['df'].copy()
@@ -708,18 +685,18 @@ if module == "📊 投資組合分析":
             nf[x['名稱']] = (s/s.iloc[0])*100
         st.line_chart(pd.concat(nf, axis=1).dropna(how='all'))
 
-        section_card("回撤圖")
+        st.markdown('<p class="section-header">回撤圖</p>', unsafe_allow_html=True)
         if d1:
             dd = d1['df'].copy()
             dd['date'] = pd.to_datetime(dd['date']).dt.normalize()
             dd = dd.groupby('date')['nav'].last()
             st.area_chart((dd - dd.expanding().max()) / dd.expanding().max(), color="#e84040")
 
-        section_card("定期定額試算")
+        st.markdown('<p class="section-header">定期定額試算</p>', unsafe_allow_html=True)
         col1, col2 = st.columns([1,2])
         with col2:
             fy = st.slider("試算年數", 1, 30, 10, key="dca_fy")
-            er = st.slider("年化報酬率(%)", 0, 20, min(max(int(p_ret),0),20), key="dca_er")
+            er = st.slider("年化報酬率(%)", 0, 300, min(max(int(p_ret),0),300), key="dca_er")
 
         # 直接用 monthly_amt × 月數計算，不依賴歷史資料月數
         n_months = fy * 12
@@ -756,7 +733,7 @@ if module == "📊 投資組合分析":
         df_chart.index.name = "月份"
         st.area_chart(df_chart, color=["#4f46e5","#7c3aed"])
 
-        section_card("系統分析報告")
+        st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         advice = get_investment_advice(
             [x['名稱'] for x in all_d], p_ret, p_mdd, dca_roi
         )
@@ -773,8 +750,8 @@ if module == "📊 投資組合分析":
 # 模組二：客戶財務健診
 # ═══════════════════════════════════════════════════════
 elif module == "🏥 客戶財務健診":
-    hero_banner("🏥", "客戶財務健診", "收支分析 · 資產負債健康度 · 財務缺口診斷", "#065f46","#047857","#059669","#6ee7b7")
-    section_card("收入與支出")
+    st.subheader("🏥 客戶財務健診報告")
+    st.markdown('<p class="section-header">收入與支出</p>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -789,7 +766,7 @@ elif module == "🏥 客戶財務健診":
         insurance_fee = st.number_input("保費（月）", value=5000, step=500)
         other_exp = st.number_input("其他支出（月）", value=10000, step=1000)
 
-    section_card("資產與負債")
+    st.markdown('<p class="section-header">資產與負債</p>', unsafe_allow_html=True)
     col3, col4 = st.columns(2)
     with col3:
         st.markdown("**🏦 資產**")
@@ -818,14 +795,14 @@ elif module == "🏥 客戶財務健診":
         savings_rate  = (monthly_surplus / total_income * 100) if total_income > 0 else 0
         emergency_months = (cash * 10000) / total_expense if total_expense > 0 else 0
 
-        section_card("財務健診結果")
+        st.markdown('<p class="section-header">財務健診結果</p>', unsafe_allow_html=True)
         m1,m2,m3,m4 = st.columns(4)
         m1.metric("月結餘", f"${monthly_surplus:,.0f}", delta="盈餘" if monthly_surplus>0 else "赤字")
         m2.metric("淨資產", f"${net_worth/10000:,.0f} 萬")
         m3.metric("負債比率", f"{debt_ratio:.1f}%", delta="偏高" if debt_ratio>40 else "健康")
         m4.metric("緊急預備金", f"{emergency_months:.1f} 個月")
 
-        section_card("收支分析")
+        st.markdown('<p class="section-header">收支分析</p>', unsafe_allow_html=True)
         df_income = pd.DataFrame({
             "項目": ["薪資收入","其他收入","租金收入","生活費","房貸/房租","保費","其他支出","月結餘"],
             "金額（元）": [salary, side_income, rental, -living, -housing, -insurance_fee, -other_exp, monthly_surplus]
@@ -850,7 +827,7 @@ elif module == "🏥 客戶財務健診":
                 badge = '<span class="ok-badge">✓ 健康</span>' if ok else '<span class="gap-badge">⚠ 注意</span>'
                 st.markdown(f"**{k}**：{v} {badge}", unsafe_allow_html=True)
 
-        section_card("系統分析報告")
+        st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         advice_h = get_health_advice(monthly_surplus, savings_rate, debt_ratio, emergency_months, net_worth)
         render_ai(advice_h, "系統分析 · 財務健診")
 
@@ -872,7 +849,7 @@ elif module == "🏥 客戶財務健診":
 # 模組三：保險需求分析
 # ═══════════════════════════════════════════════════════
 elif module == "🛡️ 保險需求分析":
-    hero_banner("🛡", "保險需求分析", "壽險 · 醫療 · 失能 · 保障缺口完整評估", "#1e3a5f","#1e40af","#2563eb","#93c5fd")
+    st.subheader("🛡️ 保險需求分析")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -924,7 +901,7 @@ elif module == "🛡️ 保險需求分析":
         accident_needed = annual_income * 10
         accident_gap    = max(accident_needed - current_accident, 0)
 
-        section_card("🔍 保障缺口深度診斷")
+        st.markdown('<p class="section-header">🔍 保障缺口深度診斷</p>', unsafe_allow_html=True)
         
         # ── 漸層 KPI 卡片 ──
         st.markdown(f"""
@@ -982,7 +959,7 @@ elif module == "🛡️ 保險需求分析":
         st.table(df_ins) # 使用 table 取代 dataframe 更具正式感
         st.markdown('</div>', unsafe_allow_html=True)
 
-        section_card("系統分析報告")
+        st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         advice_i = get_insurance_advice(age, life_gap, medical_gap, disable_gap, accident_gap)
         render_ai(advice_i, "系統分析 · 保障需求")
 
@@ -997,7 +974,7 @@ elif module == "🛡️ 保險需求分析":
 # 模組四：退休金試算
 # ═══════════════════════════════════════════════════════
 elif module == "🏖️ 退休金試算":
-    hero_banner("🏖", "退休金試算", "累積期 · 提領期 · 完整人生資產走勢圖", "#431407","#9a3412","#ea580c","#fdba74")
+    st.subheader("🏖️ 退休金試算")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -1011,7 +988,7 @@ elif module == "🏖️ 退休金試算":
         st.markdown("**現有退休準備**")
         current_saving   = st.number_input("已累積退休金（萬）", value=100, step=10)
         monthly_save     = st.number_input("每月儲蓄退休金（元）", value=15000, step=1000)
-        expected_return  = st.slider("預期年化報酬率(%)", 2.0, 10.0, 5.0, 0.1)
+        expected_return  = st.slider("預期年化報酬率(%)", 0.0, 100.0, 5.0, 0.5)
         labor_pension    = st.number_input("預計勞保月領（元）", value=15000, step=1000)
         other_income     = st.number_input("其他退休收入（月）", value=0, step=5000)
 
@@ -1043,7 +1020,7 @@ elif module == "🏖️ 退休金試算":
         gap = max(total_needed - total_accumulated, 0)
         gap_monthly = gap / (((1+r_monthly)**n - 1) / r_monthly * (1+r_monthly)) if r_monthly>0 and n>0 else gap/n
 
-        section_card("退休金試算結果")
+        st.markdown('<p class="section-header">退休金試算結果</p>', unsafe_allow_html=True)
         r1,r2,r3,r4 = st.columns(4)
         r1.metric("退休所需總額", f"{total_needed/10000:,.0f} 萬")
         r2.metric("預計累積資產", f"{total_accumulated/10000:,.0f} 萬")
@@ -1051,7 +1028,7 @@ elif module == "🏖️ 退休金試算":
         r4.metric("每月需多存", f"${gap_monthly:,.0f}" if gap>0 else "已足夠")
 
         # ── 完整人生資產走勢圖（累積期 + 提領期）──
-        section_card("完整人生資產走勢圖")
+        st.markdown('<p class="section-header">完整人生資產走勢圖</p>', unsafe_allow_html=True)
         st.caption(f"藍線：累積期（{current_age}~{retire_age}歲）｜橘線：退休提領期（{retire_age}~{life_expect}歲）")
 
         total_years = life_expect - current_age
@@ -1133,7 +1110,7 @@ elif module == "🏖️ 退休金試算":
         })
         st.dataframe(df_retire, use_container_width=True, hide_index=True)
 
-        section_card("系統分析報告")
+        st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         advice_r = get_retirement_advice(current_age, retire_age, gap, gap_monthly, total_needed, total_accumulated, expected_return)
         render_ai(advice_r, "系統分析 · 退休規劃")
 
@@ -1148,7 +1125,7 @@ elif module == "🏖️ 退休金試算":
 # 模組五：稅務規劃（綜所稅 + 海外收入 + 遺產贈與稅）
 # ═══════════════════════════════════════════════════════
 elif module == "🧾 稅務規劃":
-    hero_banner("🧾", "稅務規劃", "綜合所得稅 · 海外收入 AMT · 遺產贈與稅試算", "#052e16","#166534","#16a34a","#86efac")
+    st.subheader("🧾 稅務規劃")
 
     # 子分頁
     tax_tab1, tax_tab2, tax_tab3 = st.tabs(["📋 綜合所得稅", "🌏 海外收入分析", "🏛️ 遺產與贈與稅"])
@@ -1208,7 +1185,7 @@ elif module == "🧾 稅務規劃":
             final_tax  = max(tax - div_credit, 0)
             eff_rate   = final_tax / total_gross * 100 if total_gross > 0 else 0
 
-            section_card("試算結果")
+            st.markdown('<p class="section-header">試算結果</p>', unsafe_allow_html=True)
             t1,t2,t3,t4 = st.columns(4)
             t1.metric("綜合所得總額", f"${total_gross:,.0f}")
             t2.metric("綜合所得淨額", f"${net_income:,.0f}")
@@ -1230,7 +1207,7 @@ elif module == "🧾 稅務規劃":
             else:
                 st.info(f"ℹ️ 採標準扣除額 ${standard_ded:,.0f}（列舉 ${itemized_ded:,.0f} 較低）")
 
-            section_card("系統分析報告")
+            st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
             advice_t = get_tax_advice(total_gross, final_tax, eff_rate, use_itemized, dividend_income, filing_status)
             render_ai(advice_t, "系統分析 · 綜合所得稅")
 
@@ -1306,7 +1283,7 @@ elif module == "🧾 稅務規劃":
             total_tax_burden = normal_tax + additional_tax
             eff_rate_overseas = total_tax_burden / (domestic_income_cmp + total_overseas) * 100 if (domestic_income_cmp + total_overseas) > 0 else 0
 
-            section_card("海外收入稅務分析")
+            st.markdown('<p class="section-header">海外收入稅務分析</p>', unsafe_allow_html=True)
 
             # KPI
             o1,o2,o3,o4 = st.columns(4)
@@ -1341,7 +1318,7 @@ elif module == "🧾 稅務規劃":
             st.dataframe(df_overseas, use_container_width=True, hide_index=True)
 
             # 國內 vs 海外收入結構圖
-            section_card("國內外收入結構比較")
+            st.markdown('<p class="section-header">國內外收入結構比較</p>', unsafe_allow_html=True)
             df_structure = pd.DataFrame({
                 "類別": ["國內所得", "海外薪資", "海外股利/配息", "海外租金", "海外資本利得"],
                 "金額（萬）": [
@@ -1355,7 +1332,7 @@ elif module == "🧾 稅務規劃":
             st.bar_chart(df_structure)
 
             # 節稅提示
-            section_card("海外稅務節稅要點")
+            st.markdown('<p class="section-header">海外稅務節稅要點</p>', unsafe_allow_html=True)
             tips = []
             if total_overseas < 1000000:
                 tips.append("✅ 海外收入未達 100 萬免稅門檻，目前**無需計入最低稅負**，建議維持在此範圍內")
@@ -1456,7 +1433,7 @@ elif module == "🧾 稅務規劃":
                 if taxable_gift <= limit: break
 
             # ── 顯示結果 ──
-            section_card("遺產稅試算")
+            st.markdown('<p class="section-header">遺產稅試算</p>', unsafe_allow_html=True)
             e1,e2,e3,e4 = st.columns(4)
             e1.metric("遺產淨額", f"{net_estate:,.0f} 萬")
             e2.metric("課稅遺產淨額", f"{taxable_estate:,.0f} 萬")
@@ -1479,7 +1456,7 @@ elif module == "🧾 稅務規劃":
             })
             st.dataframe(df_estate, use_container_width=True, hide_index=True)
 
-            section_card("贈與稅試算")
+            st.markdown('<p class="section-header">贈與稅試算</p>', unsafe_allow_html=True)
             g1,g2,g3 = st.columns(3)
             g1.metric("贈與總額", f"{gift_amount:,} 萬")
             g2.metric(f"免稅額（{gift_persons}人×244萬）", f"{total_gift_exempt:,} 萬")
@@ -1488,7 +1465,7 @@ elif module == "🧾 稅務規劃":
 
             # ── 壽險節稅分析 ──
             if life_insurance_value > 0:
-                section_card("壽險節稅分析")
+                st.markdown('<p class="section-header">壽險節稅分析</p>', unsafe_allow_html=True)
                 st.info(f"""
                 💡 **壽險死亡給付節稅效果**
                 - 指定受益人的壽險給付 **不計入遺產**，每位受益人享有 **3,330 萬免稅額**
@@ -1498,7 +1475,7 @@ elif module == "🧾 稅務規劃":
                 """)
 
             # ── 遺產 vs 逐年贈與比較 ──
-            section_card("遺產稅 vs 逐年贈與規劃比較")
+            st.markdown('<p class="section-header">遺產稅 vs 逐年贈與規劃比較</p>', unsafe_allow_html=True)
             years_plan = 10
             gift_per_year = GIFT_EXEMPT_PER * 2  # 夫妻各自贈與
             total_gift_10y = gift_per_year * years_plan
@@ -1525,7 +1502,7 @@ elif module == "🧾 稅務規劃":
             st.dataframe(df_compare, use_container_width=True, hide_index=True)
 
             # 節稅建議文字
-            section_card("節稅規劃建議")
+            st.markdown('<p class="section-header">節稅規劃建議</p>', unsafe_allow_html=True)
             advice_estate = f"""【遺產與贈與稅規劃報告】
 
 一、遺產稅現況
@@ -1561,7 +1538,7 @@ elif module == "🧾 稅務規劃":
 # 模組六：信貸投資套利試算
 # ═══════════════════════════════════════════════════════
 elif module == "💳 信貸投資套利":
-    hero_banner("💳", "信貸投資套利", "借貸利率 vs 投資報酬 · 損益平衡分析 · 現金流試算", "#451a03","#92400e","#d97706","#fcd34d")
+    st.subheader("💳 信貸投資套利試算")
     st.markdown("""
     <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 16px;
                 font-size:0.82rem;color:#3730a3;margin-bottom:16px;">
@@ -1616,7 +1593,7 @@ elif module == "💳 信貸投資套利":
 
     if total_cl_pct == 100:
         # ── 各標的設定：區分配息型 vs 成長型 ──
-        section_card("標的報酬率設定")
+        st.markdown('<p class="section-header">標的報酬率設定</p>', unsafe_allow_html=True)
         st.caption("配息型：有月配息現金流（如安聯收益成長）；成長型：只有資產增值（如0050 ETF）")
         cagr_results = []
         weighted_return  = 0   # 加權報酬率（計算資產終值）
@@ -1641,7 +1618,7 @@ elif module == "💳 信貸投資套利":
             c1, c2 = st.columns([4, 1])
             with c1:
                 exp = st.number_input(f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
-                    min_value=0.0, max_value=30.0, step=0.5, key=f"cl_exp_{tid}")
+                    min_value=0.0, max_value=300.0, step=0.5, key=f"cl_exp_{tid}")
             with c2:
                 _o=["配息型","成長型"]; _v=st.session_state.get(f"cl_div_{tid}","配息型")
                 is_dividend = st.selectbox("類型",_o,index=_o.index(_v) if _v in _o else 0,
@@ -1679,7 +1656,7 @@ elif module == "💳 信貸投資套利":
         net_monthly_flow = monthly_dividend - monthly_payment
         arb_spread = weighted_return - loan_rate
 
-        section_card("套利試算結果")
+        st.markdown('<p class="section-header">套利試算結果</p>', unsafe_allow_html=True)
 
         st.markdown("**月現金流分析**")
         c1, c2, c3 = st.columns(3)
@@ -1701,7 +1678,7 @@ elif module == "💳 信貸投資套利":
         
         # --- 以下為強化風險分析邏輯 ---
     if total_cl_pct == 100:
-        section_card("🛡️ 華爾街壓力測試 (Stress Test)")
+        st.markdown('<p class="section-header">🛡️ 華爾街壓力測試 (Stress Test)</p>', unsafe_allow_html=True)
         
         # 1. 模擬黑天鵝事件 (單月跌幅 20%)
         black_swan_drop = 0.20
@@ -1743,7 +1720,7 @@ elif module == "💳 信貸投資套利":
             st.success("🟢 穩健套利：利差充足且現金流管理良好，符合華爾街穩健增長模型。")
 
         # ── 走勢圖 ──
-        section_card("資產 vs 負債走勢")
+        st.markdown('<p class="section-header">資產 vs 負債走勢</p>', unsafe_allow_html=True)
         st.caption("藍線：投資資產複利成長；紅線：信貸負債餘額逐月遞減")
         trend_data = []
         for y in range(loan_years + 1):
@@ -1802,11 +1779,11 @@ elif module == "💳 信貸投資套利":
 四、免責聲明
 本試算僅供參考，請在充分了解風險後再做決策。"""
 
-        section_card("系統分析報告")
+        st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         render_ai(advice_credit, "系統分析 · 信貸套利")
 
         # ── 損益平衡分析 + 換標的建議 ──
-        section_card("損益平衡分析與標的建議")
+        st.markdown('<p class="section-header">損益平衡分析與標的建議</p>', unsafe_allow_html=True)
 
         # 計算損益平衡所需的最低報酬率
         # 需要滿足：inv_amount × (1+r)^loan_years = total_payment
@@ -1994,7 +1971,7 @@ padding:14px 18px;margin:10px 0;font-size:13px;line-height:1.8;">
 # 模組七：房貸減壓分析
 # ═══════════════════════════════════════════════════════
 elif module == "🏠 房貸減壓分析":
-    hero_banner("🏠", "房貸減壓分析", "寬限期規劃 · 理財型房貸 · 月現金流優化", "#450a0a","#991b1b","#dc2626","#fca5a5")
+    st.subheader("🏠 房貸減壓套利分析")
     st.markdown("""
     <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 16px;
                 font-size:0.82rem;color:#3730a3;margin-bottom:16px;">
@@ -2061,7 +2038,7 @@ elif module == "🏠 房貸減壓分析":
 
     if total_hl_pct == 100:
         # ── 各標的設定：區分配息型 vs 成長型 ──
-        section_card("標的報酬率設定")
+        st.markdown('<p class="section-header">標的報酬率設定</p>', unsafe_allow_html=True)
         st.caption("請分別設定各標的的年化報酬率與類型（配息型可產生每月現金流；成長型只有資產增值）")
 
         hl_cagr_results = []
@@ -2088,7 +2065,7 @@ elif module == "🏠 房貸減壓分析":
             r1, r2, r3 = st.columns([3, 1, 1])
             with r1:
                 exp = st.number_input(f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
-                    min_value=0.0, max_value=30.0, step=0.5, key=f"hl_exp_{tid}")
+                    min_value=0.0, max_value=300.0, step=0.5, key=f"hl_exp_{tid}")
             with r2:
                 _o=["配息型","成長型"]; _v=st.session_state.get(f"hl_div_{tid}","配息型")
                 is_dividend = st.selectbox("類型",_o,index=_o.index(_v) if _v in _o else 0,
@@ -2143,7 +2120,7 @@ elif module == "🏠 房貸減壓分析":
         net_flow_after = monthly_diff_after + hl_dividend_income
         inv_final_10y  = (inv_total_actual * 10000) * (1 + hl_weighted_return/100) ** 10
 
-        section_card("房貸減壓試算結果")
+        st.markdown('<p class="section-header">房貸減壓試算結果</p>', unsafe_allow_html=True)
 
         # 原房貸 vs 新方案比較
         st.markdown("**月付款比較**")
@@ -2165,7 +2142,7 @@ elif module == "🏠 房貸減壓分析":
         h4c.metric("10年後投資終值", f"${inv_final_10y:,.0f}")
 
         # ── 走勢圖：30年（含寬限期切換）──
-        section_card("資產 vs 房貸負債走勢（30年）")
+        st.markdown('<p class="section-header">資產 vs 房貸負債走勢（30年）</p>', unsafe_allow_html=True)
         st.caption("藍線：投資資產複利成長；紅線：房貸負債餘額（寬限期後本金開始下降）")
         cf_data = []
         for y in range(31):
@@ -2243,7 +2220,7 @@ elif module == "🏠 房貸減壓分析":
 五、免責聲明
 本試算依過去數據估算，實際結果以市場表現為準。"""
 
-        section_card("系統分析報告")
+        st.markdown('<p class="section-header">系統分析報告</p>', unsafe_allow_html=True)
         render_ai(advice_house, "系統分析 · 房貸減壓")
 
         pdf_bytes_h = build_pdf(client_name, [
@@ -2398,7 +2375,7 @@ elif module == "💎 AI 財富導航":
         """, unsafe_allow_html=True)
 
         # ── 三個 Tab：AI 動態推論標的 ──
-        section_card("AI 投資路徑建議")
+        st.markdown('<p class="section-header">AI 投資路徑建議</p>', unsafe_allow_html=True)
         tab_cons, tab_bal, tab_agg = st.tabs(["🛡️ 穩健保本（保守）", "⚖️ 標準平衡（核心）", "🚀 積極成長（進取）"])
 
         # 核心 AI 推論邏輯
@@ -2462,7 +2439,7 @@ elif module == "💎 AI 財富導航":
             st.error("⚠️ 警告：積極路徑可能面臨 -40% 以上回撤。AI 診斷：您的年齡與月收入足以支撐此波動，但請務必分批投入。")
 
         # ── 走勢比較圖 ──
-        section_card("三條路徑資產成長比較")
+        st.markdown('<p class="section-header">三條路徑資產成長比較</p>', unsafe_allow_html=True)
         yrs = list(range(0, years_to65 + 1))
         rows_cons, rows_bal, rows_agg = [], [], []
         for y in yrs:
@@ -2486,7 +2463,7 @@ elif module == "💎 AI 財富導航":
         st.caption("Y 軸單位：萬元 ｜ 假設每月持續投入 $" + f"{c_save:,}" + "，投資資產以設定報酬率複利成長")
 
         # ── AI 診斷建議文字 ──
-        section_card("AI 綜合建議")
+        st.markdown('<p class="section-header">AI 綜合建議</p>', unsafe_allow_html=True)
         advice_ai = f"""【AI 財富導航診斷報告】
 
 一、財務健康度評估
