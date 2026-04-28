@@ -719,7 +719,7 @@ if module == "📊 投資組合分析":
         col1, col2 = st.columns([1,2])
         with col2:
             fy = st.slider("試算年數", 1, 30, 10, key="dca_fy")
-            er = st.slider("年化報酬率(%)", 0, 20, min(max(int(p_ret),0),20), key="dca_er")
+            er = st.slider("年化報酬率(%)", 0, 300, min(max(int(p_ret),0),300), key="dca_er")
 
         # 直接用 monthly_amt × 月數計算，不依賴歷史資料月數
         n_months = fy * 12
@@ -1011,7 +1011,7 @@ elif module == "🏖️ 退休金試算":
         st.markdown("**現有退休準備**")
         current_saving   = st.number_input("已累積退休金（萬）", value=100, step=10)
         monthly_save     = st.number_input("每月儲蓄退休金（元）", value=15000, step=1000)
-        expected_return  = st.slider("預期年化報酬率(%)", 2.0, 10.0, 5.0, 0.1)
+        expected_return  = st.slider("預期年化報酬率(%)", 0.0, 100.0, 5.0, 0.5)
         labor_pension    = st.number_input("預計勞保月領（元）", value=15000, step=1000)
         other_income     = st.number_input("其他退休收入（月）", value=0, step=5000)
 
@@ -1641,7 +1641,7 @@ elif module == "💳 信貸投資套利":
             c1, c2 = st.columns([4, 1])
             with c1:
                 exp = st.number_input(f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
-                    min_value=0.0, max_value=30.0, step=0.5, key=f"cl_exp_{tid}")
+                    min_value=0.0, max_value=300.0, step=0.5, key=f"cl_exp_{tid}")
             with c2:
                 _o=["配息型","成長型"]; _v=st.session_state.get(f"cl_div_{tid}","配息型")
                 is_dividend = st.selectbox("類型",_o,index=_o.index(_v) if _v in _o else 0,
@@ -2088,7 +2088,7 @@ elif module == "🏠 房貸減壓分析":
             r1, r2, r3 = st.columns([3, 1, 1])
             with r1:
                 exp = st.number_input(f"{name}（{tid}）近3年CAGR：{cagr_display} — 預期年化報酬率（%）",
-                    min_value=0.0, max_value=30.0, step=0.5, key=f"hl_exp_{tid}")
+                    min_value=0.0, max_value=300.0, step=0.5, key=f"hl_exp_{tid}")
             with r2:
                 _o=["配息型","成長型"]; _v=st.session_state.get(f"hl_div_{tid}","配息型")
                 is_dividend = st.selectbox("類型",_o,index=_o.index(_v) if _v in _o else 0,
