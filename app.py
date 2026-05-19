@@ -25,6 +25,32 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ─────────────────────────────────────────────
+# 密碼保護
+# ─────────────────────────────────────────────
+def check_password():
+    pw = st.secrets.get("APP_PASSWORD", "")
+    if not pw:
+        return True  # 沒設密碼就直接進入（開發模式）
+
+    if st.session_state.get("authenticated"):
+        return True
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("## 💼 財務規劃系統 Pro")
+        entered = st.text_input("密碼", type="password", key="pw_input",
+                                placeholder="請輸入授權密碼")
+        if st.button("進入系統", use_container_width=True, key="btn_pw"):
+            if entered == pw:
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("❌ 密碼錯誤，請重試")
+    st.stop()
+
+check_password()
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
